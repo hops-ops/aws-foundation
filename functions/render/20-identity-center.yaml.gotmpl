@@ -1,0 +1,128 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# IdentityCenter XRD
+# ==================
+# Creates the aws-identity-center XRD with groups, users, permission sets, and assignments.
+# Account assignments use resolved account IDs from the Organization XRD status.
+
+{{- if and $identityCenterEnabled $identityStoreId }}
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: IdentityCenter
+metadata:
+  name: {{ $name }}-identity-center
+  namespace: {{ $namespace }}
+  annotations:
+    {{ setResourceNameAnnotation "identity-center" }}
+spec:
+  managementPolicies: {{ toJson $managementPolicies }}
+  organizationName: {{ $name }}
+  region: {{ $identityCenterRegion }}
+  providerConfigName: {{ $identityCenterProviderConfig }}
+  identityStoreId: {{ $identityStoreId }}
+  {{- if $identityCenterInstanceArn }}
+  identityCenter:
+    instanceArn: {{ $identityCenterInstanceArn }}
+    sessionDuration: {{ $identityCenterSessionDuration }}
+  {{- end }}
+  {{- if gt (len $identityCenterGroups) 0 }}
+  groups:
+    {{- range $group := $identityCenterGroups }}
+    - name: {{ $group.name }}
+      {{- if $group.displayName }}
+      displayName: {{ $group.displayName }}
+      {{- end }}
+      {{- if $group.description }}
+      description: {{ $group.description }}
+      {{- end }}
+      {{- if $group.externalName }}
+      externalName: {{ $group.externalName | quote }}
+      {{- end }}
+      {{- if $group.managementPolicies }}
+      managementPolicies: {{ toJson $group.managementPolicies }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if gt (len $identityCenterUsers) 0 }}
+  users:
+    {{- range $user := $identityCenterUsers }}
+    - username: {{ $user.username }}
+      email: {{ $user.email }}
+      {{- if $user.firstName }}
+      firstName: {{ $user.firstName }}
+      {{- end }}
+      {{- if $user.lastName }}
+      lastName: {{ $user.lastName }}
+      {{- end }}
+      {{- if $user.displayName }}
+      displayName: {{ $user.displayName }}
+      {{- end }}
+      {{- if $user.groups }}
+      groups: {{ toJson $user.groups }}
+      {{- end }}
+      {{- if $user.externalName }}
+      externalName: {{ $user.externalName | quote }}
+      {{- end }}
+      {{- if $user.managementPolicies }}
+      managementPolicies: {{ toJson $user.managementPolicies }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if gt (len $identityCenterPermissionSets) 0 }}
+  permissionSets:
+    {{- range $ps := $identityCenterPermissionSets }}
+    - name: {{ $ps.name }}
+      {{- if $ps.description }}
+      description: {{ $ps.description }}
+      {{- end }}
+      {{- if $ps.sessionDuration }}
+      sessionDuration: {{ $ps.sessionDuration }}
+      {{- end }}
+      {{- if $ps.inlinePolicy }}
+      inlinePolicy: |
+        {{ $ps.inlinePolicy | nindent 8 }}
+      {{- end }}
+      {{- if $ps.managedPolicies }}
+      managedPolicies: {{ toJson $ps.managedPolicies }}
+      {{- end }}
+      {{- if $ps.customerManagedPolicies }}
+      customerManagedPolicies:
+        {{- range $cmp := $ps.customerManagedPolicies }}
+        - name: {{ $cmp.name }}
+          {{- if $cmp.path }}
+          path: {{ $cmp.path }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if $ps.externalName }}
+      externalName: {{ $ps.externalName | quote }}
+      {{- end }}
+      {{- if $ps.managementPolicies }}
+      managementPolicies: {{ toJson $ps.managementPolicies }}
+      {{- end }}
+      {{- $psAssignToAccounts := $ps.assignToAccounts | default (list) }}
+      {{- $psAssignToGroups := $ps.assignToGroups | default (list) }}
+      {{- $psAssignToUsers := $ps.assignToUsers | default (list) }}
+      {{- if or (gt (len $psAssignToAccounts) 0) (gt (len $psAssignToGroups) 0) (gt (len $psAssignToUsers) 0) }}
+      # Resolve account names to IDs for assignments
+      {{- $resolvedAccountIds := list }}
+      {{- range $accountName := $psAssignToAccounts }}
+        {{- $accountId := get $accountNameToId $accountName }}
+        {{- if and $accountId (ne $accountId "Pending") }}
+          {{- $resolvedAccountIds = append $resolvedAccountIds $accountId }}
+        {{- end }}
+      {{- end }}
+      {{- if gt (len $resolvedAccountIds) 0 }}
+      assignToAccounts: {{ toJson $resolvedAccountIds }}
+      {{- end }}
+      {{- if gt (len $psAssignToGroups) 0 }}
+      assignToGroups: {{ toJson $psAssignToGroups }}
+      {{- end }}
+      {{- if gt (len $psAssignToUsers) 0 }}
+      assignToUsers: {{ toJson $psAssignToUsers }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

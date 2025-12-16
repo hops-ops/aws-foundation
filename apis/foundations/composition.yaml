@@ -1,0 +1,16 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: foundations.aws.hops.ops.com.ai
+spec:
+  compositeTypeRef:
+    apiVersion: aws.hops.ops.com.ai/v1alpha1
+    kind: Foundation
+  mode: Pipeline
+  pipeline:
+  - functionRef:
+      name: hops-ops-configuration-aws-foundationrender
+    step: render
+  - functionRef:
+      name: crossplane-contrib-function-auto-ready
+    step: crossplane-contrib-function-auto-ready

@@ -1,0 +1,94 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Foundation XRD - Uses aws-organization, aws-identity-center, and aws-ipam XRDs
+# ==============================================================================
+# This composition creates:
+# - Organization XRD (with OUs, accounts, delegated admins)
+# - IdentityCenter XRD (with groups, users, permission sets, assignments)
+# - IPAM XRD (with pools and RAM shares)
+# - ProviderConfigs for each account (using OrganizationAccountAccessRole)
+
+{{- $xr := getCompositeResource . }}
+{{- $spec := $xr.spec }}
+{{- $metadata := $xr.metadata }}
+{{- $name := $metadata.name }}
+{{- $namespace := $metadata.namespace | default "default" }}
+
+{{- $managementPolicies := $spec.managementPolicies | default (list "*") }}
+
+{{- $aws := $spec.aws | default (dict) }}
+{{- $awsProviderConfig := $aws.providerConfig | default $name | default "default" }}
+{{- $awsRegion := $aws.region | default "us-east-1" }}
+
+{{- $defaultTags := dict "hops" "true" }}
+{{- $tags := merge $defaultTags ($spec.tags | default (dict)) }}
+
+# Organization configuration
+{{- $organization := $spec.organization | default (dict) }}
+{{- $organizationExternalName := $organization.externalName | default "" }}
+{{- $organizationManagementPolicies := $organization.managementPolicies | default $managementPolicies }}
+{{- $awsServiceAccessPrincipals := $organization.awsServiceAccessPrincipals | default (list) }}
+
+{{- $organizationalUnits := $spec.organizationalUnits | default (list) }}
+{{- $accounts := $spec.accounts | default (list) }}
+{{- $delegatedAdministrators := $spec.delegatedAdministrators | default (list) }}
+
+# Organization is enabled if: has OUs, has accounts, or has delegated admins
+{{- $organizationEnabled := or (gt (len $organizationalUnits) 0) (gt (len $accounts) 0) (gt (len $delegatedAdministrators) 0) }}
+
+# Identity Center configuration
+{{- $identityCenter := $spec.identityCenter | default (dict) }}
+{{- $identityCenterEnabled := $identityCenter.enabled | default (ne ($identityCenter.identityStoreId | default "") "") }}
+{{- $identityCenterRegion := $identityCenter.region | default $awsRegion }}
+{{- $identityCenterProviderConfig := $identityCenter.providerConfig | default $awsProviderConfig }}
+{{- $identityStoreId := $identityCenter.identityStoreId | default "" }}
+{{- $identityCenterInstanceArn := $identityCenter.instanceArn | default "" }}
+{{- $identityCenterSessionDuration := $identityCenter.sessionDuration | default "PT1H" }}
+{{- $identityCenterGroups := $identityCenter.groups | default (list) }}
+{{- $identityCenterUsers := $identityCenter.users | default (list) }}
+{{- $identityCenterPermissionSets := $identityCenter.permissionSets | default (list) }}
+
+# IPAM configuration
+{{- $ipam := $spec.ipam | default (dict) }}
+{{- $ipamPools := $ipam.pools | default (list) }}
+{{- $ipamEnabled := $ipam.enabled | default (gt (len $ipamPools) 0) }}
+{{- $ipamProviderConfig := $ipam.providerConfig | default $awsProviderConfig }}
+{{- $ipamDelegatedAdminAccount := $ipam.delegatedAdminAccount | default "" }}
+# IPAM scope: use explicit value, or default based on organization presence
+{{- $ipamScopeDefault := ternary "delegated-organization" "private" $organizationEnabled }}
+{{- $ipamScope := $ipam.scope | default $ipamScopeDefault }}
+{{- $ipamHomeRegion := $ipam.homeRegion | default $awsRegion }}
+{{- $ipamOperatingRegions := $ipam.operatingRegions | default (list $ipamHomeRegion) }}
+
+# Build account lookup for name -> config
+{{- $accountsByName := dict }}
+{{- range $account := $accounts }}
+  {{- $_ := set $accountsByName $account.name $account }}
+{{- end }}
+
+# Build OU structure for Organization XRD (accounts nested in OUs)
+{{- $ouWithAccounts := list }}
+{{- range $ou := $organizationalUnits }}
+  {{- $ouPath := $ou.path }}
+  {{- $ouAccounts := list }}
+  {{- range $account := $accounts }}
+    {{- if eq ($account.ou | default "") $ouPath }}
+      {{- $ouAccounts = append $ouAccounts $account }}
+    {{- end }}
+  {{- end }}
+  {{- $ouEntry := merge $ou (dict "accounts" $ouAccounts) }}
+  {{- $ouWithAccounts = append $ouWithAccounts $ouEntry }}
+{{- end }}
+
+# Build group lookup for name -> config
+{{- $groupsByName := dict }}
+{{- range $group := $identityCenterGroups }}
+  {{- $_ := set $groupsByName $group.name $group }}
+{{- end }}
+
+# Build user lookup for username -> config
+{{- $usersByName := dict }}
+{{- range $user := $identityCenterUsers }}
+  {{- $_ := set $usersByName $user.username $user }}
+{{- end }}

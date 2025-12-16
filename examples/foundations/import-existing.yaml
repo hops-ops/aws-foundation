@@ -1,0 +1,129 @@
+# Import Existing: Adopt an existing AWS Organization
+# ====================================================
+# Use this when you already have an AWS Organization and want
+# Crossplane to manage it. The organization is adopted (not created)
+# and won't be deleted when the Foundation is removed.
+#
+# Steps to import:
+# 1. Get your organization ID: aws organizations describe-organization
+# 2. Get existing OU IDs: aws organizations list-organizational-units-for-parent
+# 3. Get existing account IDs: aws organizations list-accounts
+# 4. Set externalName on each resource you want to adopt
+#
+# Management policies:
+# - Organization uses Observe-only (won't delete the org)
+# - OUs and accounts can use full management (will be deleted if removed)
+# - Adjust per-resource as needed
+
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
+metadata:
+  name: imported-org
+  namespace: default
+spec:
+  managementPolicies: ["*"]
+
+  aws:
+    providerConfig: aws-management
+    region: us-east-1
+
+  tags:
+    managed-by: crossplane
+    imported: "true"
+
+  # ---------------------------------------------------------------------------
+  # Import existing organization
+  # ---------------------------------------------------------------------------
+  organization:
+    externalName: o-abc123xyz  # Your existing organization ID
+    # Don't delete the organization when Foundation is removed
+    managementPolicies:
+      - Create
+      - Observe
+      - Update
+      - LateInitialize
+
+  # ---------------------------------------------------------------------------
+  # Import existing OUs
+  # ---------------------------------------------------------------------------
+  organizationalUnits:
+    - path: Security
+      externalName: ou-abc1-security12    # Existing OU ID
+
+    - path: Infrastructure
+      externalName: ou-abc1-infra1234
+
+    - path: Workloads
+      externalName: ou-abc1-workloads1
+
+    - path: Workloads/Prod
+      externalName: ou-abc1-prod12345
+
+    - path: Workloads/Non-Prod
+      externalName: ou-abc1-nonprod12
+
+  # ---------------------------------------------------------------------------
+  # Import existing accounts
+  # ---------------------------------------------------------------------------
+  # Existing accounts are adopted and get cross-account access configured
+  accounts:
+    - name: shared-services
+      email: shared-services@example.com  # Must match existing
+      ou: Infrastructure
+      externalName: "222222222222"        # Existing account ID
+      # Observe-only: don't close account if removed from config
+      managementPolicies:
+        - Create
+        - Observe
+        - Update
+        - LateInitialize
+
+    - name: production
+      email: production@example.com
+      ou: Workloads/Prod
+      externalName: "333333333333"
+      managementPolicies:
+        - Create
+        - Observe
+        - Update
+        - LateInitialize
+
+    - name: development
+      email: development@example.com
+      ou: Workloads/Non-Prod
+      externalName: "444444444444"
+      managementPolicies:
+        - Create
+        - Observe
+        - Update
+        - LateInitialize
+
+  # ---------------------------------------------------------------------------
+  # Identity Center (optional)
+  # ---------------------------------------------------------------------------
+  # If you already have Identity Center set up, configure it here
+  # Groups and permission sets will be created/managed by Crossplane
+
+  identityCenter:
+    region: us-east-1
+    identityStoreId: d-1234567890
+    instanceArn: arn:aws:sso:::instance/ssoins-abcdef
+
+    groups:
+      - name: Administrators
+        description: Full admin access
+        # Import existing group
+        externalName: 12345678-abcd-1234-abcd-123456789012
+
+    permissionSets:
+      - name: AdministratorAccess
+        managedPolicies:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+        # Import existing permission set
+        externalName: arn:aws:sso:::permissionSet/ssoins-abcdef/ps-1234567890abcdef
+        assignToGroups:
+          - Administrators
+        assignToAccounts:
+          - shared-services
+          - production
+          - development

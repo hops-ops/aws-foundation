@@ -1,0 +1,47 @@
+# Organization XRD - Ready with all OUs and Accounts
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Organization
+metadata:
+  name: acme
+  namespace: acme
+  annotations:
+    crossplane.io/composition-resource-name: organization
+    gotemplating.fn.crossplane.io/composition-resource-name: organization
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  organizationId: o-abc123xyz
+  managementAccountId: "111111111111"
+  rootId: r-abc123
+  organizationalUnits:
+    Security: ou-abc1-security
+    Infrastructure: ou-abc2-infrastructure
+    Workloads: ou-abc3-workloads
+    Workloads/Prod: ou-abc4-prod
+    Workloads/Non-Prod: ou-abc5-nonprod
+    Sandbox: ou-abc6-sandbox
+  accounts:
+    - name: acme-security-tooling
+      id: "222222222222"
+      ready: true
+      adminRoleArn: arn:aws:iam::222222222222:role/OrganizationAccountAccessRole
+    - name: acme-shared-services
+      id: "333333333333"
+      ready: true
+      adminRoleArn: arn:aws:iam::333333333333:role/OrganizationAccountAccessRole
+    - name: acme-prod
+      id: "444444444444"
+      ready: true
+      adminRoleArn: arn:aws:iam::444444444444:role/OrganizationAccountAccessRole
+    - name: acme-staging
+      id: "555555555555"
+      ready: true
+      adminRoleArn: arn:aws:iam::555555555555:role/OrganizationAccountAccessRole
+    - name: acme-dev
+      id: "666666666666"
+      ready: true
+      adminRoleArn: arn:aws:iam::666666666666:role/OrganizationAccountAccessRole
+  ready: true

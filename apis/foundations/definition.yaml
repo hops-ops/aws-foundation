@@ -1,0 +1,294 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: foundations.aws.hops.ops.com.ai
+spec:
+  scope: Namespaced
+  group: aws.hops.ops.com.ai
+  names:
+    kind: Foundation
+    plural: foundations
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        description: |
+          Foundation creates a complete AWS foundation: Organization with accounts,
+          Identity Center with permission sets, and IPAM for network IP management.
+          Accounts can be referenced by name throughout the configuration.
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - managementPolicies
+            properties:
+              managementPolicies:
+                type: array
+                description: ManagementPolicies for all composed resources.
+                items:
+                  type: string
+                  enum: ["*", Create, Observe, Update, Delete, LateInitialize]
+                default: ["*"]
+
+              aws:
+                type: object
+                description: AWS provider configuration.
+                properties:
+                  providerConfig:
+                    type: string
+                    description: Default AWS provider config name. Falls back to metadata.name.
+                  region:
+                    type: string
+                    description: Default AWS region for resources that require it.
+
+              tags:
+                type: object
+                description: Default tags applied to all AWS resources.
+                x-kubernetes-preserve-unknown-fields: true
+
+              # =============================================================================
+              # Organization - passed to aws-organization XRD
+              # =============================================================================
+              organization:
+                type: object
+                description: AWS Organization configuration. Passed to Organization XRD.
+                x-kubernetes-preserve-unknown-fields: true
+
+              organizationalUnits:
+                type: array
+                description: |
+                  Organizational unit hierarchy using path-based definition.
+                  Each OU can contain nested accounts. Passed to Organization XRD.
+                items:
+                  type: object
+                  required:
+                  - path
+                  x-kubernetes-preserve-unknown-fields: true
+                  properties:
+                    path:
+                      type: string
+                      description: OU path (e.g., Security, Workloads/Prod).
+                      pattern: ^[a-zA-Z0-9-]+(/[a-zA-Z0-9-]+)*$
+
+              accounts:
+                type: array
+                description: |
+                  AWS accounts to create. Each account is placed in an OU and can be
+                  referenced by name in permission sets and delegated administrators.
+                items:
+                  type: object
+                  required:
+                  - name
+                  - email
+                  x-kubernetes-preserve-unknown-fields: true
+                  properties:
+                    name:
+                      type: string
+                      description: |
+                        Logical account name. Used as reference key everywhere.
+                        Also becomes metadata.name for the Account composite.
+                    email:
+                      type: string
+                      description: AWS account email (must be unique globally).
+                    ou:
+                      type: string
+                      description: |
+                        OU path where account will be placed (e.g., Workloads/Prod).
+                        Must match a path in organizationalUnits.
+
+              delegatedAdministrators:
+                type: array
+                description: Delegated administrator accounts for AWS services.
+                items:
+                  type: object
+                  required:
+                  - servicePrincipal
+                  - account
+                  x-kubernetes-preserve-unknown-fields: true
+                  properties:
+                    servicePrincipal:
+                      type: string
+                      description: AWS service principal (e.g., sso.amazonaws.com).
+                    account:
+                      type: string
+                      description: Account name from spec.accounts[].name.
+
+              # =============================================================================
+              # Identity Center - passed to aws-identity-center XRD
+              # =============================================================================
+              identityCenter:
+                type: object
+                description: AWS IAM Identity Center configuration. Passed to IdentityCenter XRD.
+                x-kubernetes-preserve-unknown-fields: true
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Enable Identity Center. Defaults to true if identityStoreId is set.
+                  region:
+                    type: string
+                    description: AWS region for Identity Center.
+                  identityStoreId:
+                    type: string
+                    description: Identity Store ID (required when enabled).
+                  providerConfig:
+                    type: string
+                    description: Override AWS provider config for Identity Center.
+                  instanceArn:
+                    type: string
+                    description: Existing Identity Center instance ARN.
+                  sessionDuration:
+                    type: string
+                    description: Default session duration (ISO8601). Defaults to PT1H.
+                  groups:
+                    type: array
+                    description: Identity Store groups. Passed to IdentityCenter XRD.
+                    items:
+                      type: object
+                      required:
+                      - name
+                      x-kubernetes-preserve-unknown-fields: true
+                      properties:
+                        name:
+                          type: string
+                          description: Group name for reference in permission sets.
+                  users:
+                    type: array
+                    description: Identity Store users. Passed to IdentityCenter XRD.
+                    items:
+                      type: object
+                      required:
+                      - username
+                      x-kubernetes-preserve-unknown-fields: true
+                      properties:
+                        username:
+                          type: string
+                          description: Username for reference.
+                        groups:
+                          type: array
+                          description: Group names this user belongs to.
+                          items:
+                            type: string
+                  permissionSets:
+                    type: array
+                    description: |
+                      Permission sets with account assignments.
+                      assignToAccounts uses account names (resolved to IDs by Foundation).
+                    items:
+                      type: object
+                      required:
+                      - name
+                      x-kubernetes-preserve-unknown-fields: true
+                      properties:
+                        name:
+                          type: string
+                          description: Permission set name.
+                        assignToAccounts:
+                          type: array
+                          description: |
+                            Account names from spec.accounts[].name.
+                            Foundation resolves these to account IDs.
+                          items:
+                            type: string
+                        assignToGroups:
+                          type: array
+                          description: Group names to assign this permission set to.
+                          items:
+                            type: string
+                        assignToUsers:
+                          type: array
+                          description: Local user names to assign this permission set to.
+                          items:
+                            type: string
+
+              # =============================================================================
+              # IPAM - passed to aws-ipam XRD
+              # =============================================================================
+              ipam:
+                type: object
+                description: AWS VPC IP Address Manager configuration. Passed to IPAM XRD.
+                x-kubernetes-preserve-unknown-fields: true
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Enable IPAM. Defaults to true if pools are defined.
+                  providerConfig:
+                    type: string
+                    description: Override AWS provider config for IPAM.
+                  delegatedAdminAccount:
+                    type: string
+                    description: |
+                      Account name from spec.accounts[].name for IPAM delegation.
+                      Foundation resolves this to account ID.
+                  scope:
+                    type: string
+                    description: |
+                      IPAM scope. Defaults based on organization presence.
+                    enum: [private, delegated-organization, global-organization]
+                  homeRegion:
+                    type: string
+                    description: AWS region hosting the IPAM instance.
+                  operatingRegions:
+                    type: array
+                    description: AWS regions where IPAM can allocate CIDRs.
+                    items:
+                      type: string
+                  pools:
+                    type: array
+                    description: |
+                      IPAM pools. ramShareTargets uses account/OU names (resolved by Foundation).
+                    items:
+                      type: object
+                      required:
+                      - name
+                      x-kubernetes-preserve-unknown-fields: true
+                      properties:
+                        name:
+                          type: string
+                          description: Pool name for reference.
+                        ramShareTargets:
+                          type: array
+                          description: |
+                            RAM share targets using account/OU names.
+                            Foundation resolves these to IDs.
+                          items:
+                            type: object
+                            properties:
+                              ou:
+                                type: string
+                                description: OU path from organizationalUnits.
+                              account:
+                                type: string
+                                description: Account name from spec.accounts[].name.
+
+          status:
+            type: object
+            description: Observed state for Foundation.
+            x-kubernetes-preserve-unknown-fields: true
+            properties:
+              ready:
+                type: boolean
+                description: All components are ready.
+              organization:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              organizationalUnits:
+                type: object
+                description: Map of OU paths to OU IDs.
+                x-kubernetes-preserve-unknown-fields: true
+              accounts:
+                type: array
+                description: Accounts with their resolved IDs and ProviderConfig info.
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+              identityCenter:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              ipam:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true

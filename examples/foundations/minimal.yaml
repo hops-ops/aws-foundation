@@ -1,0 +1,26 @@
+# Minimal: Simplest AWS foundation with Organization only
+# =======================================================
+# Use this to start with just an AWS Organization.
+# Add Identity Center, IPAM, and accounts later as needed.
+
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
+metadata:
+  name: my-org
+  namespace: default
+spec:
+  managementPolicies: ["*"]
+
+  aws:
+    providerConfig: default
+    region: us-east-1
+
+  tags:
+    managed-by: crossplane
+
+  organization:
+    awsServiceAccessPrincipals:
+      - sso.amazonaws.com
+
+  organizationalUnits:
+    - path: Workloads

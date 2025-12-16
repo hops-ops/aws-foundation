@@ -1,0 +1,36 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Account ProviderConfigs
+# =======================
+# Creates ProviderConfigs that assume OrganizationAccountAccessRole into each account.
+# AWS automatically creates this role when accounts are created via Organizations.
+#
+# Each account gets a ProviderConfig named after the account, allowing downstream
+# resources to reference the account by name.
+
+{{- range $account := $accounts }}
+  {{- $accountName := $account.name }}
+  {{- $accountId := get $accountNameToId $accountName }}
+  {{- $accountReady := get $accountNameReady $accountName }}
+  {{- $resourceName := printf "account-pc-%s" $accountName }}
+
+  {{- if and $accountReady (ne $accountId "Pending") }}
+---
+apiVersion: aws.m.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: {{ $accountName }}
+  labels:
+    hops.ops.com.ai/managed: "true"
+    hops.ops.com.ai/foundation: {{ $name }}
+    hops.ops.com.ai/account-name: {{ $accountName }}
+  annotations:
+    {{ setResourceNameAnnotation $resourceName }}
+spec:
+  assumeRoleChain:
+    - roleARN: arn:aws:iam::{{ $accountId }}:role/OrganizationAccountAccessRole
+  credentials:
+    source: IRSA
+  {{- end }}
+{{- end }}

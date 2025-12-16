@@ -1,0 +1,69 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Organization XRD
+# =================
+# Creates the aws-organization XRD with OUs, accounts, and delegated admins.
+
+{{- if $organizationEnabled }}
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Organization
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  annotations:
+    {{ setResourceNameAnnotation "organization" }}
+spec:
+  managementPolicies: {{ toJson $managementPolicies }}
+  {{- if $organizationExternalName }}
+  externalName: {{ $organizationExternalName | quote }}
+  {{- end }}
+  aws:
+    providerConfig: {{ $awsProviderConfig }}
+  tags:
+    {{- toYaml $tags | nindent 4 }}
+  organization:
+    managementPolicies: {{ toJson $organizationManagementPolicies }}
+    {{- if gt (len $awsServiceAccessPrincipals) 0 }}
+    awsServiceAccessPrincipals: {{ toJson $awsServiceAccessPrincipals }}
+    {{- end }}
+  {{- if gt (len $ouWithAccounts) 0 }}
+  organizationalUnits:
+    {{- range $ou := $ouWithAccounts }}
+    - path: {{ $ou.path }}
+      {{- if $ou.externalName }}
+      externalName: {{ $ou.externalName | quote }}
+      {{- end }}
+      {{- if $ou.managementPolicies }}
+      managementPolicies: {{ toJson $ou.managementPolicies }}
+      {{- end }}
+      {{- $ouAccounts := $ou.accounts | default (list) }}
+      {{- if gt (len $ouAccounts) 0 }}
+      accounts:
+        {{- range $account := $ouAccounts }}
+        - name: {{ $account.name }}
+          email: {{ $account.email }}
+          {{- if $account.externalName }}
+          externalName: {{ $account.externalName | quote }}
+          {{- end }}
+          {{- if $account.managementPolicies }}
+          managementPolicies: {{ toJson $account.managementPolicies }}
+          {{- end }}
+          {{- if $account.tags }}
+          tags:
+            {{- toYaml $account.tags | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if gt (len $delegatedAdministrators) 0 }}
+  delegatedAdministrators:
+    {{- range $da := $delegatedAdministrators }}
+    - servicePrincipal: {{ $da.servicePrincipal }}
+      accountRef:
+        name: {{ $da.account }}
+    {{- end }}
+  {{- end }}
+{{- end }}

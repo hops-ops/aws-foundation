@@ -1,0 +1,383 @@
+# Enterprise: Production-grade AWS foundation
+# ============================================
+# Complete multi-account architecture following AWS best practices:
+# - OU hierarchy for security, infrastructure, and workloads
+# - Dedicated accounts for security tooling and shared services
+# - Identity Center with groups and permission sets
+# - IPAM for centralized IP management
+# - Cross-account access with permission boundaries
+#
+# This example creates:
+# - 1 AWS Organization
+# - 6 Organizational Units (hierarchical)
+# - 5 Member Accounts
+# - 2 Delegated Administrators (SSO, IPAM)
+# - 3 Identity Store Groups
+# - 3 Permission Sets with account assignments
+# - 4 IPAM Pools with RAM sharing
+#
+# After apply, each account has a ProviderConfig ready:
+#   providerConfigRef:
+#     name: acme-prod  # or acme-dev, acme-shared-services, etc.
+
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
+metadata:
+  name: acme
+  namespace: acme
+spec:
+  managementPolicies: ["*"]
+
+  aws:
+    providerConfig: aws-management-account
+    region: us-east-1
+
+  tags:
+    organization: acme
+    environment: production
+    managed-by: crossplane
+
+  # ---------------------------------------------------------------------------
+  # Organization Settings
+  # ---------------------------------------------------------------------------
+  organization:
+    awsServiceAccessPrincipals:
+      - sso.amazonaws.com
+      - ipam.amazonaws.com
+      - ram.amazonaws.com
+
+  # ---------------------------------------------------------------------------
+  # Organizational Unit Hierarchy
+  # ---------------------------------------------------------------------------
+  # AWS best-practice structure:
+  # Root
+  # ├── Security          (security tooling, log archive, audit)
+  # ├── Infrastructure    (shared services, networking, CI/CD)
+  # ├── Workloads
+  # │   ├── Prod          (production workloads)
+  # │   └── Non-Prod      (staging, dev, QA)
+  # └── Sandbox           (experimentation, learning)
+
+  organizationalUnits:
+    - path: Security
+    - path: Infrastructure
+    - path: Workloads
+    - path: Workloads/Prod
+    - path: Workloads/Non-Prod
+    - path: Sandbox
+
+  # ---------------------------------------------------------------------------
+  # Accounts
+  # ---------------------------------------------------------------------------
+  # Each account gets:
+  # - cross-account-access role (AdministratorAccess by default)
+  # - Permission boundary (prevents access key creation, etc.)
+  # - ProviderConfig for downstream resource management
+
+  accounts:
+    # Security OU
+    - name: acme-security-tooling
+      email: security-tooling@acme.example.com
+      ou: Security
+      tags:
+        team: security
+
+    # Infrastructure OU
+    - name: acme-shared-services
+      email: shared-services@acme.example.com
+      ou: Infrastructure
+      tags:
+        team: platform
+
+    # Production workloads
+    - name: acme-prod
+      email: prod@acme.example.com
+      ou: Workloads/Prod
+      tags:
+        environment: production
+
+    # Non-production workloads
+    - name: acme-staging
+      email: staging@acme.example.com
+      ou: Workloads/Non-Prod
+      tags:
+        environment: staging
+
+    - name: acme-dev
+      email: dev@acme.example.com
+      ou: Workloads/Non-Prod
+      tags:
+        environment: development
+
+  # ---------------------------------------------------------------------------
+  # Delegated Administrators
+  # ---------------------------------------------------------------------------
+  # Delegate AWS service administration to shared-services account
+
+  delegatedAdministrators:
+    - servicePrincipal: sso.amazonaws.com
+      account: acme-shared-services
+    - servicePrincipal: ipam.amazonaws.com
+      account: acme-shared-services
+
+  # ---------------------------------------------------------------------------
+  # Identity Center
+  # ---------------------------------------------------------------------------
+  # Centralized access management with SSO
+
+  identityCenter:
+    region: us-east-1
+    identityStoreId: d-1234567890        # From AWS SSO console
+    instanceArn: arn:aws:sso:::instance/ssoins-abcdef0123456789
+
+    # Groups for access control
+    groups:
+      - name: Administrators
+        description: Full administrative access to all accounts
+
+      - name: Developers
+        description: Development access to non-production accounts
+
+      - name: ReadOnly
+        description: Read-only access for auditing and compliance
+
+    # Permission sets define what access each group gets
+    permissionSets:
+      - name: AdministratorAccess
+        description: Full administrator access
+        sessionDuration: PT4H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+        assignToGroups:
+          - Administrators
+        assignToAccounts:
+          - acme-shared-services
+          - acme-security-tooling
+          - acme-prod
+          - acme-staging
+          - acme-dev
+
+      - name: DeveloperAccess
+        description: Developer access for non-prod environments
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups:
+          - Developers
+        assignToAccounts:
+          - acme-staging
+          - acme-dev
+
+      - name: ViewOnlyAccess
+        description: Read-only access for compliance review
+        sessionDuration: PT1H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/ViewOnlyAccess
+        assignToGroups:
+          - ReadOnly
+        assignToAccounts:
+          - acme-shared-services
+          - acme-security-tooling
+          - acme-prod
+          - acme-staging
+          - acme-dev
+
+  # ---------------------------------------------------------------------------
+  # IPAM (IP Address Manager) - Dual-Stack Configuration
+  # ---------------------------------------------------------------------------
+  # Centralized IP allocation with RAM sharing to OUs
+  # Supports both IPv4 and IPv6 for EKS dual-stack/IPv6-only clusters
+  #
+  # Pool Architecture:
+  # - IPv4 pools: Private scope, explicit CIDRs (10.x.x.x ranges)
+  # - IPv6 public pools: Amazon-provided addresses for internet-routable IPv6
+  # - IPv6 private pools: ULA ranges for internal-only IPv6 (optional)
+  #
+  # For dual-stack VPCs, reference both an IPv4 pool ID and IPv6 pool ID
+
+  ipam:
+    delegatedAdminAccount: acme-shared-services
+    scope: global-organization
+    homeRegion: us-east-1
+    operatingRegions:
+      - us-east-1
+      - us-west-2
+      - eu-west-1
+
+    pools:
+      # ==========================================================================
+      # IPv4 Pools
+      # ==========================================================================
+
+      # Production IPv4 pool - US East 1
+      - name: prod-ipv4-us-east-1
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.0.0.0/12
+        allocationDefaultNetmaskLength: 20
+        allocationMinNetmaskLength: 20
+        allocationMaxNetmaskLength: 26
+        description: Production IPv4 VPCs in US East 1
+        labels:
+          environment: production
+          region: us-east-1
+        ramShareTargets:
+          - ou: Workloads/Prod
+
+      # Production IPv4 pool - US West 2
+      - name: prod-ipv4-us-west-2
+        addressFamily: ipv4
+        region: us-west-2
+        locale: us-west-2
+        cidr: 10.16.0.0/12
+        allocationDefaultNetmaskLength: 20
+        description: Production IPv4 VPCs in US West 2
+        labels:
+          environment: production
+          region: us-west-2
+        ramShareTargets:
+          - ou: Workloads/Prod
+
+      # Non-production IPv4 pool
+      - name: non-prod-ipv4-us-east-1
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.32.0.0/12
+        allocationDefaultNetmaskLength: 22
+        allocationMinNetmaskLength: 22
+        allocationMaxNetmaskLength: 28
+        description: Non-production IPv4 VPCs
+        labels:
+          environment: non-production
+        ramShareTargets:
+          - ou: Workloads/Non-Prod
+          - ou: Sandbox
+
+      # Shared services IPv4 pool
+      - name: shared-services-ipv4
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.48.0.0/16
+        allocationDefaultNetmaskLength: 24
+        description: Shared infrastructure IPv4 VPCs
+        labels:
+          environment: shared
+        ramShareTargets:
+          - ou: Infrastructure
+
+      # ==========================================================================
+      # IPv6 Public Pools (Amazon-provided for EKS dual-stack)
+      # ==========================================================================
+      # These pools use Amazon's public IPv6 address space.
+      # Each pool gets a /52 that can allocate /56 blocks to VPCs.
+      # Required for EKS clusters with internet-routable IPv6 addresses.
+      #
+      # EKS IPv6 Requirements:
+      # - VPC needs both IPv4 and IPv6 CIDRs
+      # - Subnets get /64 from VPC's /56
+      # - Pods use IPv6 addresses (or dual-stack)
+      # - Nodes are always dual-stack
+      # - Prefix delegation provides /80 per node for scalable pod addressing
+
+      # Production IPv6 pool - US East 1 (Amazon-provided)
+      - name: prod-ipv6-us-east-1
+        addressFamily: ipv6
+        scope: public
+        region: us-east-1
+        locale: us-east-1
+        amazonProvidedIpv6CidrBlock: true
+        publicIpSource: amazon
+        awsService: ec2
+        allocationDefaultNetmaskLength: 56
+        allocationMinNetmaskLength: 52
+        allocationMaxNetmaskLength: 60
+        description: Production IPv6 VPCs in US East 1 (Amazon GUA for EKS)
+        labels:
+          environment: production
+          region: us-east-1
+          eks-ready: "true"
+        ramShareTargets:
+          - ou: Workloads/Prod
+
+      # Production IPv6 pool - US West 2 (Amazon-provided)
+      - name: prod-ipv6-us-west-2
+        addressFamily: ipv6
+        scope: public
+        region: us-west-2
+        locale: us-west-2
+        amazonProvidedIpv6CidrBlock: true
+        publicIpSource: amazon
+        awsService: ec2
+        allocationDefaultNetmaskLength: 56
+        allocationMinNetmaskLength: 52
+        allocationMaxNetmaskLength: 60
+        description: Production IPv6 VPCs in US West 2 (Amazon GUA for EKS)
+        labels:
+          environment: production
+          region: us-west-2
+          eks-ready: "true"
+        ramShareTargets:
+          - ou: Workloads/Prod
+
+      # Non-production IPv6 pool (Amazon-provided)
+      - name: non-prod-ipv6-us-east-1
+        addressFamily: ipv6
+        scope: public
+        region: us-east-1
+        locale: us-east-1
+        amazonProvidedIpv6CidrBlock: true
+        publicIpSource: amazon
+        awsService: ec2
+        allocationDefaultNetmaskLength: 56
+        allocationMinNetmaskLength: 56
+        allocationMaxNetmaskLength: 60
+        description: Non-production IPv6 VPCs (Amazon GUA for EKS)
+        labels:
+          environment: non-production
+          eks-ready: "true"
+        ramShareTargets:
+          - ou: Workloads/Non-Prod
+          - ou: Sandbox
+
+      # Shared services IPv6 pool (Amazon-provided)
+      - name: shared-services-ipv6
+        addressFamily: ipv6
+        scope: public
+        region: us-east-1
+        locale: us-east-1
+        amazonProvidedIpv6CidrBlock: true
+        publicIpSource: amazon
+        awsService: ec2
+        allocationDefaultNetmaskLength: 56
+        description: Shared infrastructure IPv6 VPCs (Amazon GUA)
+        labels:
+          environment: shared
+          eks-ready: "true"
+        ramShareTargets:
+          - ou: Infrastructure
+
+      # ==========================================================================
+      # IPv6 Private Pools (Optional - ULA for internal-only traffic)
+      # ==========================================================================
+      # Use private IPv6 pools for workloads that need IPv6 internally
+      # but should NOT be internet-routable. Uses ULA range fd00::/8.
+      #
+      # Example: Internal microservices, databases, backend systems
+
+      # Private IPv6 pool for internal services (ULA)
+      - name: internal-ipv6-us-east-1
+        addressFamily: ipv6
+        scope: private
+        region: us-east-1
+        locale: us-east-1
+        cidr: fd00:acme:0::/48
+        allocationDefaultNetmaskLength: 56
+        allocationMinNetmaskLength: 48
+        allocationMaxNetmaskLength: 64
+        description: Internal-only IPv6 VPCs (ULA - not internet routable)
+        labels:
+          environment: internal
+          internet-routable: "false"
+        ramShareTargets:
+          - ou: Infrastructure
+          - ou: Workloads/Prod

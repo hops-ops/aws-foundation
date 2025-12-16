@@ -1,0 +1,154 @@
+# Individual: Simple foundation for single-account setups
+# ========================================================
+# Perfect for solo founders, small teams, or single-project accounts.
+# No Organization, no OUs - Identity Center + IPAM for SSO and easy VPC creation.
+#
+# What you get:
+# - Identity Center with groups and permission sets for SSO access
+# - IPAM with IPv4 and IPv6 pools for dual-stack VPC allocation
+# - Ready for EKS Auto Mode with IPv6 support
+# - Simple setup without multi-account complexity
+#
+# After apply:
+# - SSO groups and permission sets are ready in Identity Center
+# - Create dual-stack VPCs with automatic CIDR allocation from status pool IDs
+# - Deploy EKS Auto Mode clusters with IPv6 networking
+#
+# Note: Account assignments require manual creation outside this Foundation
+# since there's no Organization to resolve account references. Create them
+# directly with ssoadmin.aws.m.upbound.io/v1beta1 AccountAssignment resources.
+
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
+metadata:
+  name: my-foundation
+  namespace: default
+spec:
+  managementPolicies: ["*"]
+
+  aws:
+    providerConfig: default
+    region: us-east-1
+
+  tags:
+    managed-by: crossplane
+
+  # No organization, no OUs, no accounts needed for single-account setup
+
+  # ---------------------------------------------------------------------------
+  # Identity Center
+  # ---------------------------------------------------------------------------
+  # Centralized SSO access management. Get identityStoreId and instanceArn
+  # from AWS SSO console: IAM Identity Center > Settings.
+
+  identityCenter:
+    region: us-east-1
+    identityStoreId: d-1234567890        # From AWS SSO console
+    instanceArn: arn:aws:sso:::instance/ssoins-abcdef0123456789
+
+    # Groups for access control
+    groups:
+      - name: Administrators
+        description: Full administrative access
+
+      - name: Developers
+        description: Development access for building and deploying
+
+      - name: ReadOnly
+        description: Read-only access for viewing resources
+
+    # Permission sets define what access each group gets
+    # Note: assignToAccounts not used here since there's no Organization.
+    # Create AccountAssignment resources separately to assign these
+    # permission sets to your account.
+    permissionSets:
+      - name: AdministratorAccess
+        description: Full administrator access
+        sessionDuration: PT4H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+
+      - name: PowerUserAccess
+        description: Developer access without IAM management
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+
+      - name: ViewOnlyAccess
+        description: Read-only access for review
+        sessionDuration: PT1H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/ViewOnlyAccess
+
+  # ---------------------------------------------------------------------------
+  # IPAM - Dual-Stack for EKS Auto Mode
+  # ---------------------------------------------------------------------------
+  # IP Address Manager for dual-stack VPC CIDR allocation.
+  # Includes both IPv4 and IPv6 pools for EKS Auto Mode clusters.
+  #
+  # EKS Auto Mode IPv6 Benefits:
+  # - Pods get native IPv6 addresses (no NAT overhead)
+  # - Essentially unlimited pod IPs (/80 prefix = 281 trillion addresses per node)
+  # - Better performance for modern workloads
+  # - Prefix delegation scales automatically
+
+  ipam:
+    scope: private  # Single-account IPAM (no organization delegation)
+    homeRegion: us-east-1
+    operatingRegions:
+      - us-east-1
+
+    pools:
+      # ==========================================================================
+      # IPv4 Pool
+      # ==========================================================================
+      # Required for EKS control plane, node management, and legacy workloads
+      - name: ipv4
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.0.0.0/8
+        allocationDefaultNetmaskLength: 20  # /20 = 4096 IPs per VPC
+        allocationMinNetmaskLength: 16      # Allow up to /16
+        allocationMaxNetmaskLength: 24      # Minimum /24
+        description: IPv4 pool for VPCs
+
+      # ==========================================================================
+      # IPv6 Public Pool (Amazon-provided for EKS Auto Mode)
+      # ==========================================================================
+      # Internet-routable IPv6 addresses from Amazon's GUA space.
+      # AWS allocates a /52 that can provide /56 blocks to VPCs.
+      #
+      # For EKS Auto Mode:
+      # - Pods get native IPv6 addresses via prefix delegation
+      # - Each node gets /80 prefixes (~65k addresses per node)
+      # - No NAT, no IP exhaustion concerns
+      - name: ipv6-public
+        addressFamily: ipv6
+        scope: public
+        region: us-east-1
+        locale: us-east-1
+        amazonProvidedIpv6CidrBlock: true
+        publicIpSource: amazon
+        awsService: ec2
+        allocationDefaultNetmaskLength: 56
+        allocationMinNetmaskLength: 52
+        allocationMaxNetmaskLength: 60
+        description: Public IPv6 pool (Amazon GUA for EKS Auto Mode)
+
+      # ==========================================================================
+      # IPv6 Private Pool (ULA for internal microservices)
+      # ==========================================================================
+      # Non-routable IPv6 for internal service-to-service traffic.
+      # Uses ULA (fd00::/8) - stays within your network.
+      #
+      # Use cases: databases, service mesh, backend APIs
+      - name: ipv6-private
+        addressFamily: ipv6
+        scope: private
+        region: us-east-1
+        locale: us-east-1
+        cidr: fd00:my:app::/48
+        allocationDefaultNetmaskLength: 56
+        allocationMinNetmaskLength: 48
+        allocationMaxNetmaskLength: 64
+        description: Private IPv6 pool (ULA for internal microservices)

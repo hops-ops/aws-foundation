@@ -1,0 +1,167 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Observed Values - Extract status from composed XRDs
+# ====================================================
+
+{{- $observed := $.observed.resources | default (dict) }}
+
+# =============================================================================
+# Organization XRD Observation
+# =============================================================================
+{{- $organizationObservation := get $observed "organization" }}
+{{- $organizationReady := false }}
+{{- $organizationId := "Pending" }}
+{{- $managementAccountId := "Pending" }}
+{{- $rootId := "Pending" }}
+{{- $ouPathToId := dict }}
+{{- $accountNameToId := dict }}
+{{- $accountNameReady := dict }}
+{{- $accountsAllReady := true }}
+
+{{- with $organizationObservation }}
+  {{- $resource := .resource | default (dict) }}
+  {{- $status := $resource.status | default (dict) }}
+  {{- $conditions := $status.conditions | default (list) }}
+  {{- range $conditions }}
+    {{- if and (eq (get . "type") "Ready") (eq (get . "status") "True") }}
+      {{- $organizationReady = true }}
+    {{- end }}
+  {{- end }}
+
+  # Extract organization details
+  {{- $candidateOrgId := $status.organizationId | default "" }}
+  {{- if $candidateOrgId }}
+    {{- $organizationId = $candidateOrgId }}
+  {{- end }}
+  {{- $candidateMgmtAccount := $status.managementAccountId | default "" }}
+  {{- if $candidateMgmtAccount }}
+    {{- $managementAccountId = $candidateMgmtAccount }}
+  {{- end }}
+  {{- $candidateRootId := $status.rootId | default "" }}
+  {{- if $candidateRootId }}
+    {{- $rootId = $candidateRootId }}
+  {{- end }}
+
+  # Extract OU IDs from Organization status
+  {{- $statusOUs := $status.organizationalUnits | default (dict) }}
+  {{- range $path, $id := $statusOUs }}
+    {{- $_ := set $ouPathToId $path $id }}
+  {{- end }}
+
+  # Extract account IDs from Organization status
+  {{- $statusAccounts := $status.accounts | default (list) }}
+  {{- range $account := $statusAccounts }}
+    {{- $accountName := $account.name | default "" }}
+    {{- $accountId := $account.id | default "Pending" }}
+    {{- $accountReady := $account.ready | default false }}
+    {{- if $accountName }}
+      {{- $_ := set $accountNameToId $accountName $accountId }}
+      {{- $_ := set $accountNameReady $accountName $accountReady }}
+      {{- if not $accountReady }}
+        {{- $accountsAllReady = false }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+# =============================================================================
+# IdentityCenter XRD Observation
+# =============================================================================
+{{- $identityCenterObservation := get $observed "identity-center" }}
+{{- $identityCenterXRDReady := false }}
+{{- $groupNameToId := dict }}
+{{- $userNameToId := dict }}
+{{- $permissionSetNameToArn := dict }}
+
+{{- with $identityCenterObservation }}
+  {{- $resource := .resource | default (dict) }}
+  {{- $status := $resource.status | default (dict) }}
+  {{- $conditions := $status.conditions | default (list) }}
+  {{- range $conditions }}
+    {{- if and (eq (get . "type") "Ready") (eq (get . "status") "True") }}
+      {{- $identityCenterXRDReady = true }}
+    {{- end }}
+  {{- end }}
+
+  # Extract group IDs
+  {{- $identityStore := $status.identityStore | default (dict) }}
+  {{- $statusGroups := $identityStore.groups | default (list) }}
+  {{- range $group := $statusGroups }}
+    {{- $groupName := $group.name | default "" }}
+    {{- $groupId := $group.id | default "" }}
+    {{- if $groupName }}
+      {{- $_ := set $groupNameToId $groupName $groupId }}
+    {{- end }}
+  {{- end }}
+
+  # Extract user IDs
+  {{- $statusUsers := $identityStore.users | default (list) }}
+  {{- range $user := $statusUsers }}
+    {{- $userName := $user.name | default "" }}
+    {{- $userId := $user.id | default "" }}
+    {{- if $userName }}
+      {{- $_ := set $userNameToId $userName $userId }}
+    {{- end }}
+  {{- end }}
+
+  # Extract permission set ARNs
+  {{- $statusPermissionSets := $status.permissionSets | default (list) }}
+  {{- range $ps := $statusPermissionSets }}
+    {{- $psName := $ps.name | default "" }}
+    {{- $psArn := $ps.arn | default "" }}
+    {{- if $psName }}
+      {{- $_ := set $permissionSetNameToArn $psName $psArn }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+# =============================================================================
+# IPAM XRD Observation
+# =============================================================================
+{{- $ipamObservation := get $observed "ipam" }}
+{{- $ipamXRDReady := false }}
+{{- $observedIpamId := "Pending" }}
+{{- $observedIpamArn := "Pending" }}
+{{- $observedIpamScopeId := "Pending" }}
+{{- $ipamPoolIdByName := dict }}
+{{- $ipamPoolArnByName := dict }}
+{{- $ipamPoolCidrByName := dict }}
+
+{{- with $ipamObservation }}
+  {{- $resource := .resource | default (dict) }}
+  {{- $status := $resource.status | default (dict) }}
+  {{- $conditions := $status.conditions | default (list) }}
+  {{- range $conditions }}
+    {{- if and (eq (get . "type") "Ready") (eq (get . "status") "True") }}
+      {{- $ipamXRDReady = true }}
+    {{- end }}
+  {{- end }}
+
+  # Extract IPAM details
+  {{- $ipamStatus := $status.ipam | default (dict) }}
+  {{- $candidateId := $ipamStatus.id | default "" }}
+  {{- if $candidateId }}
+    {{- $observedIpamId = $candidateId }}
+  {{- end }}
+  {{- $candidateArn := $ipamStatus.arn | default "" }}
+  {{- if $candidateArn }}
+    {{- $observedIpamArn = $candidateArn }}
+  {{- end }}
+  {{- $scopeStatus := $ipamStatus.scope | default (dict) }}
+  {{- $candidateScopeId := $scopeStatus.id | default "" }}
+  {{- if $candidateScopeId }}
+    {{- $observedIpamScopeId = $candidateScopeId }}
+  {{- end }}
+
+  # Extract pool details
+  {{- $statusPools := $ipamStatus.pools | default (list) }}
+  {{- range $pool := $statusPools }}
+    {{- $poolName := $pool.name | default "" }}
+    {{- if $poolName }}
+      {{- $_ := set $ipamPoolIdByName $poolName ($pool.id | default "Pending") }}
+      {{- $_ := set $ipamPoolArnByName $poolName ($pool.arn | default "Pending") }}
+      {{- $_ := set $ipamPoolCidrByName $poolName ($pool.cidr | default "Pending") }}
+    {{- end }}
+  {{- end }}
+{{- end }}

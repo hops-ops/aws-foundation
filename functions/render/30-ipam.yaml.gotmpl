@@ -1,0 +1,114 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# IPAM XRD
+# ========
+# Creates the aws-ipam XRD with pools and RAM shares.
+# RAM share targets use resolved OU and account IDs from the Organization XRD status.
+
+{{- if $ipamEnabled }}
+
+# Determine the delegated admin account ID for IPAM
+{{- $ipamDelegatedAdminAccountId := "" }}
+{{- if $ipamDelegatedAdminAccount }}
+  {{- $ipamDelegatedAdminAccountId = get $accountNameToId $ipamDelegatedAdminAccount }}
+{{- end }}
+
+# Only create IPAM if we have accounts ready (for delegated admin) or no org (standalone IPAM)
+{{- $canCreateIpam := true }}
+{{- if and $organizationEnabled $ipamDelegatedAdminAccount }}
+  {{- $canCreateIpam = and $ipamDelegatedAdminAccountId (ne $ipamDelegatedAdminAccountId "Pending") }}
+{{- end }}
+
+{{- if $canCreateIpam }}
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: IPAM
+metadata:
+  name: {{ $name }}-ipam
+  namespace: {{ $namespace }}
+  annotations:
+    {{ setResourceNameAnnotation "ipam" }}
+spec:
+  managementPolicies: {{ toJson $managementPolicies }}
+  organizationName: {{ $name }}
+  providerConfigName: {{ $ipamProviderConfig }}
+  scope: {{ $ipamScope }}
+  {{- if $ipamDelegatedAdminAccount }}
+  delegatedAdminAccountRef:
+    name: {{ $ipamDelegatedAdminAccount }}
+  {{- end }}
+  homeRegion: {{ $ipamHomeRegion }}
+  {{- if gt (len $ipamOperatingRegions) 0 }}
+  operatingRegions: {{ toJson $ipamOperatingRegions }}
+  {{- end }}
+  {{- if gt (len $ipamPools) 0 }}
+  pools:
+    {{- range $pool := $ipamPools }}
+    - name: {{ $pool.name }}
+      {{- if $pool.addressFamily }}
+      addressFamily: {{ $pool.addressFamily }}
+      {{- end }}
+      {{- if $pool.cidr }}
+      cidr: {{ $pool.cidr }}
+      {{- end }}
+      {{- if $pool.amazonProvidedIpv6CidrBlock }}
+      amazonProvidedIpv6CidrBlock: {{ $pool.amazonProvidedIpv6CidrBlock }}
+      {{- end }}
+      {{- if $pool.publicIpSource }}
+      publicIpSource: {{ $pool.publicIpSource }}
+      {{- end }}
+      {{- if $pool.awsService }}
+      awsService: {{ $pool.awsService }}
+      {{- end }}
+      {{- if $pool.scope }}
+      scope: {{ $pool.scope }}
+      {{- end }}
+      {{- if $pool.region }}
+      region: {{ $pool.region }}
+      {{- end }}
+      {{- if $pool.locale }}
+      locale: {{ $pool.locale }}
+      {{- end }}
+      {{- if $pool.description }}
+      description: {{ $pool.description }}
+      {{- end }}
+      {{- if $pool.allocationDefaultNetmaskLength }}
+      allocationDefaultNetmaskLength: {{ $pool.allocationDefaultNetmaskLength }}
+      {{- end }}
+      {{- if $pool.allocationMinNetmaskLength }}
+      allocationMinNetmaskLength: {{ $pool.allocationMinNetmaskLength }}
+      {{- end }}
+      {{- if $pool.allocationMaxNetmaskLength }}
+      allocationMaxNetmaskLength: {{ $pool.allocationMaxNetmaskLength }}
+      {{- end }}
+      {{- if $pool.labels }}
+      labels:
+        {{- toYaml $pool.labels | nindent 8 }}
+      {{- end }}
+      {{- if $pool.tags }}
+      tags:
+        {{- toYaml $pool.tags | nindent 8 }}
+      {{- end }}
+      # Resolve RAM share targets to IDs
+      {{- $poolShareTargets := $pool.ramShareTargets | default (list) }}
+      {{- if gt (len $poolShareTargets) 0 }}
+      ramShareTargets:
+        {{- range $target := $poolShareTargets }}
+        {{- if $target.ou }}
+          {{- $ouId := get $ouPathToId $target.ou }}
+          {{- if and $ouId (ne $ouId "Pending") }}
+        - ou: {{ $ouId }}
+          {{- end }}
+        {{- else if $target.account }}
+          {{- $accountId := get $accountNameToId $target.account }}
+          {{- if and $accountId (ne $accountId "Pending") }}
+        - account: {{ $accountId }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}
