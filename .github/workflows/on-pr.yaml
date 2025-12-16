@@ -30,17 +30,11 @@ jobs:
     with:
       examples: |
         [
-          { "example": "examples/organizations/individual.yaml" },
-          { "example": "examples/organizations/individual.yaml", "observed_resources": "examples/observed-resources/individual/steps/1" },
-          { "example": "examples/organizations/enterprise.yaml" },
-          { "example": "examples/organizations/enterprise.yaml", "observed_resources": "examples/observed-resources/enterprise/steps/1" },
-          { "example": "examples/organizations/enterprise.yaml", "observed_resources": "examples/observed-resources/enterprise/steps/2" },
-          { "example": "examples/organizations/e2e-with-infrastructure.yaml" },
-          { "example": "examples/organizations/e2e-with-infrastructure.yaml", "observed_resources": "examples/observed-resources/e2e-with-infrastructure/steps/1" },
-          { "example": "examples/organizations/e2e-with-infrastructure.yaml", "observed_resources": "examples/observed-resources/e2e-with-infrastructure/steps/2" },
-          { "example": "examples/organizations/e2e-with-infrastructure.yaml", "observed_resources": "examples/observed-resources/e2e-with-infrastructure/steps/3" }
+          { "example": "examples/foundations/individual.yaml" },
+          { "example": "examples/foundations/enterprise.yaml" },
+          { "example": "examples/foundations/enterprise.yaml", "observed_resources": "examples/observed-resources/enterprise/steps/1" },
         ]
-      api_path: apis/organizations
+      api_path: apis/foundations
       error_on_missing_schemas: true
 
   test:
