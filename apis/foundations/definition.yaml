@@ -46,6 +46,14 @@ spec:
                     type: string
                     description: Default AWS region for resources that require it.
 
+              k8s:
+                type: object
+                description: Kubernetes provider configuration for managing in-cluster resources.
+                properties:
+                  providerConfig:
+                    type: string
+                    description: Kubernetes provider config name. Falls back to metadata.name then "default".
+
               tags:
                 type: object
                 description: Default tags applied to all AWS resources.

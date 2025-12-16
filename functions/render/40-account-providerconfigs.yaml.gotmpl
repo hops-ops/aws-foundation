@@ -8,6 +8,9 @@
 #
 # Each account gets a ProviderConfig named after the account, allowing downstream
 # resources to reference the account by name.
+#
+# Uses the Kubernetes provider to create ProviderConfigs as Objects, which allows
+# for proper lifecycle management in e2e testing scenarios.
 
 {{- range $account := $accounts }}
   {{- $accountName := $account.name }}
@@ -17,20 +20,30 @@
 
   {{- if and $accountReady (ne $accountId "Pending") }}
 ---
-apiVersion: aws.m.upbound.io/v1beta1
-kind: ProviderConfig
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
 metadata:
-  name: {{ $accountName }}
-  labels:
-    hops.ops.com.ai/managed: "true"
-    hops.ops.com.ai/foundation: {{ $name }}
-    hops.ops.com.ai/account-name: {{ $accountName }}
+  name: {{ $name }}-pc-{{ $accountName }}
   annotations:
     {{ setResourceNameAnnotation $resourceName }}
 spec:
-  assumeRoleChain:
-    - roleARN: arn:aws:iam::{{ $accountId }}:role/OrganizationAccountAccessRole
-  credentials:
-    source: IRSA
+  forProvider:
+    manifest:
+      apiVersion: aws.m.upbound.io/v1beta1
+      kind: ProviderConfig
+      metadata:
+        name: {{ $accountName }}
+        labels:
+          hops.ops.com.ai/managed: "true"
+          hops.ops.com.ai/foundation: {{ $name }}
+          hops.ops.com.ai/account-name: {{ $accountName }}
+      spec:
+        assumeRoleChain:
+          - roleARN: arn:aws:iam::{{ $accountId }}:role/OrganizationAccountAccessRole
+        credentials:
+          source: PodIdentity
+  providerConfigRef:
+    kind: ProviderConfig
+    name: {{ $k8sProviderConfig }}
   {{- end }}
 {{- end }}

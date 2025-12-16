@@ -21,6 +21,9 @@
 {{- $awsProviderConfig := $aws.providerConfig | default $name | default "default" }}
 {{- $awsRegion := $aws.region | default "us-east-1" }}
 
+{{- $k8s := $spec.k8s | default (dict) }}
+{{- $k8sProviderConfig := $k8s.providerConfig | default $name | default "default" }}
+
 {{- $defaultTags := dict "hops" "true" }}
 {{- $tags := merge $defaultTags ($spec.tags | default (dict)) }}
 

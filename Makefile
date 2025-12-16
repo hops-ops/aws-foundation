@@ -18,7 +18,7 @@ build:
 # Render examples
 render: render-individual
 
-render-all: render-individual render-enterprise render-import-existing
+render-all: render-individual render-enterprise render-import-existing render-minimal
 
 render-example:
 	@test -n "$(EXAMPLE_FILE)" || (echo "Please set EXAMPLE_FILE" >&2; exit 1)
@@ -32,6 +32,9 @@ render-enterprise:
 
 render-import-existing:
 	$(MAKE) EXAMPLE_FILE=import-existing.yaml render-example
+
+render-minimal:
+	$(MAKE) EXAMPLE_FILE=minimal.yaml render-example
 
 # Multi-step rendering with observed resources
 # This composition uses XRDs (Organization, IdentityCenter, IPAM) which simplifies the reconciliation steps
@@ -50,7 +53,7 @@ test:
 	up test run $(TESTS_DIR)/*
 
 # Validation
-validate: validate-individual validate-enterprise validate-import-existing validate-example
+validate: validate-individual validate-enterprise validate-import-existing validate-minimal validate-example
 
 validate-individual:
 	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/individual.yaml \
@@ -58,10 +61,15 @@ validate-individual:
 
 validate-enterprise:
 	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/enterprise.yaml \
+		--observed-resources=examples/observed-resources/enterprise/steps/1/ \
 		--include-full-xr --quiet | crossplane beta validate $(XRM_API_DIR) -
 
 validate-import-existing:
 	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/import-existing.yaml \
+		--include-full-xr --quiet | crossplane beta validate $(XRM_API_DIR) -
+
+validate-minimal:
+	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/minimal.yaml \
 		--include-full-xr --quiet | crossplane beta validate $(XRM_API_DIR) -
 
 validate-example:

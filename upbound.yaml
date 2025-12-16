@@ -9,6 +9,10 @@ spec:
     package: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
     version: '>=v0.6.0'
   - apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    package: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+    version: '>=v1.1.0'
+  - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
     package: ghcr.io/hops-ops/configuration-aws-organization
     version: '>=v0.12.0'
