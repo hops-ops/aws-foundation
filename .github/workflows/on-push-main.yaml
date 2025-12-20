@@ -48,7 +48,7 @@ jobs:
       debug-resource-types: |
         [
           "organizations.aws.hops.ops.com.ai",
-          "idenititycenters.aws.hops.ops.com.ai",
+          "identitycenters.aws.hops.ops.com.ai",
           "ipams.aws.hops.ops.com.ai"
         ]
 
