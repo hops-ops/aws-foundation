@@ -251,6 +251,64 @@ _items = [
                             source: "InjectedIdentity"
                         }
                     }
+                },
+                # DeploymentRuntimeConfig for Kubernetes provider with known SA name
+                {
+                    apiVersion: "pkg.crossplane.io/v1beta1"
+                    kind: "DeploymentRuntimeConfig"
+                    metadata: {
+                        name: "crossplane-contrib-provider-kubernetes"
+                    }
+                    spec: {
+                        serviceAccountTemplate: {
+                            metadata: {
+                                name: "crossplane-contrib-provider-kubernetes"
+                            }
+                        }
+                    }
+                },
+                # ServiceAccount for Kubernetes provider
+                {
+                    apiVersion: "v1"
+                    kind: "ServiceAccount"
+                    metadata: {
+                        name: "crossplane-contrib-provider-kubernetes"
+                        namespace: "crossplane-system"
+                    }
+                },
+                # ClusterRoleBinding granting cluster-admin to the K8s provider SA
+                {
+                    apiVersion: "rbac.authorization.k8s.io/v1"
+                    kind: "ClusterRoleBinding"
+                    metadata: {
+                        name: "crossplane-contrib-provider-kubernetes-admin"
+                    }
+                    roleRef: {
+                        apiGroup: "rbac.authorization.k8s.io"
+                        kind: "ClusterRole"
+                        name: "cluster-admin"
+                    }
+                    subjects: [
+                        {
+                            kind: "ServiceAccount"
+                            name: "crossplane-contrib-provider-kubernetes"
+                            namespace: "crossplane-system"
+                        }
+                    ]
+                },
+                # Provider with runtimeConfigRef to use our DeploymentRuntimeConfig
+                {
+                    apiVersion: "pkg.crossplane.io/v1"
+                    kind: "Provider"
+                    metadata: {
+                        name: "crossplane-contrib-provider-kubernetes"
+                    }
+                    spec: {
+                        package: "xpkg.crossplane.io/crossplane-contrib/provider-kubernetes:v1.1.0"
+                        runtimeConfigRef: {
+                            name: "crossplane-contrib-provider-kubernetes"
+                        }
+                    }
                 }
             ]
             skipDelete: False
