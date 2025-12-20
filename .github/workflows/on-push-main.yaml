@@ -44,6 +44,13 @@ jobs:
     with:
       aws: true
       timeout-minutes: 45
+      debug-example-path: examples/foundations/minimal.yaml
+      debug-resource-types: |
+        [
+          "organizations.aws.hops.ops.com.ai",
+          "idenititycenters.aws.hops.ops.com.ai",
+          "ipams.aws.hops.ops.com.ai"
+        ]
 
   version-and-tag:
     name: Version and Tag
