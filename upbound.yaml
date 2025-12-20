@@ -19,7 +19,7 @@ spec:
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
     package: ghcr.io/hops-ops/configuration-aws-identity-center
-    version: '>=v0.2.3'
+    version: '>=v0.3.0'
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
     package: ghcr.io/hops-ops/configuration-aws-ipam
