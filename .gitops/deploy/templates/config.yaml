@@ -1,0 +1,23 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: hops-ops-configuration-aws-foundation
+spec:
+  package: ghcr.io/hops-ops/configuration-aws-foundation:{{ .Values.version }}
+  packagePullSecrets:
+    - name: ghcr
+  skipDependencyResolution: {{ .Values.skipDependencyResolution }}
+
+---
+
+# skipDependencyResolution false would name this hops-ops-configuration-aws-foundationrender
+# so we need to match that format to avoid issues with the package name
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: hops-ops-configuration-aws-foundationrender
+spec:
+  package: ghcr.io/hops-ops/configuration-aws-foundation_render:{{ .Values.version }}
+  packagePullSecrets:
+    - name: ghcr
+  skipDependencyResolution: {{ .Values.skipDependencyResolution }}
