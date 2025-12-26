@@ -44,7 +44,6 @@ jobs:
     with:
       aws: true
       timeout-minutes: 33
-      debug-example-path: examples/foundations/minimal.yaml
       debug-resource-types: |
         [
           "organizations.aws.hops.ops.com.ai",
