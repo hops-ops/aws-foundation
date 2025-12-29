@@ -5,12 +5,11 @@
 #
 # What you get:
 # - Identity Center with groups and permission sets for SSO access
-# - IPAM with IPv4 and IPv6 pools for dual-stack VPC allocation
-# - Simple setup without multi-account complexity
+# - IPAM with hierarchical IPv4 and IPv6 pools (global → regional) for dual-stack VPC allocation
 #
 # After apply:
 # - SSO groups and permission sets are ready in Identity Center
-# - Create dual-stack VPCs with automatic CIDR allocation from status pool IDs
+# - Create dual-stack VPCs using Network Allocation XRDs with pool IDs from status
 #
 # Note: Account assignments require manual creation outside this Foundation
 # since there's no Organization to resolve account references. Create them
@@ -79,16 +78,20 @@ spec:
           - arn:aws:iam::aws:policy/ViewOnlyAccess
 
   # ---------------------------------------------------------------------------
-  # IPAM - Dual-Stack IP Address Management
+  # IPAM - Hierarchical Dual-Stack IP Address Management
   # ---------------------------------------------------------------------------
-  # IP Address Manager for dual-stack VPC CIDR allocation.
-  # Pool structure matches IPAM XRD: pools.ipv4[], pools.ipv6.gua[], pools.ipv6.ula[]
+  # IP Address Manager with global → regional pool hierarchy for dual-stack VPCs.
   #
-  # IPv6 Benefits:
-  # - Pods get native IPv6 addresses (no NAT overhead)
-  # - Essentially unlimited pod IPs (/80 prefix = 281 trillion addresses per node)
-  # - Better performance for modern workloads
-  # - Prefix delegation scales automatically
+  # Pool hierarchy:
+  #   ipv4-global (10.0.0.0/8)
+  #   └── ipv4-us-east-1 (10.0.0.0/12) ← allocate VPCs from here
+  #
+  #   ipv6-ula-global (/40)
+  #   └── ipv6-ula-us-east-1 (/44) ← allocate VPCs from here
+  #
+  #   ipv6-gua-us-east-1 ← Amazon-provided public IPv6
+  #
+  # After apply, use Network Allocation XRDs to allocate from regional pools.
 
   ipam:
     region: us-east-1
@@ -97,54 +100,67 @@ spec:
 
     pools:
       # ==========================================================================
-      # IPv4 Pools
+      # IPv4 Pools - Global → Regional hierarchy
       # ==========================================================================
       ipv4:
-        - name: ipv4
-          region: us-east-1
-          cidr: 10.0.0.0/8
+        # Global pool - top of hierarchy
+        - name: ipv4-global
+          cidr: 10.0.0.0/8  # 16 million addresses
           allocations:
             netmaskLength:
-              default: 20  # /20 = 4096 IPs per VPC
-              min: 16      # Allow up to /16
-              max: 24      # Minimum /24
-          description: IPv4 pool for VPCs
+              default: 12   # Carve /12 per region
+          description: Global IPv4 pool
+
+        # Regional pool - allocate VPCs from here
+        - name: ipv4-us-east-1
+          sourcePoolRef: ipv4-global
+          locale: us-east-1
+          cidr: 10.0.0.0/12  # 10.0.0.0 - 10.15.255.255
+          allocations:
+            netmaskLength:
+              default: 16   # /16 per VPC (65k IPs)
+              min: 16
+              max: 24
+          description: Regional IPv4 pool for us-east-1 VPCs
 
       # ==========================================================================
-      # IPv6 Pools
+      # IPv6 Pools - ULA (private) and GUA (public)
       # ==========================================================================
       ipv6:
-        # GUA pools - Amazon-provided, internet-routable
-        # AWS allocates a /52 that can provide /56 blocks to VPCs.
-        # Benefits:
-        # - Pods get native IPv6 addresses via prefix delegation
-        # - Each node gets /80 prefixes (~65k addresses per node)
-        # - No NAT, no IP exhaustion concerns
-        gua:
-          - name: ipv6-public
-            region: us-east-1
+        # ULA pools - Private IPv6 (fd00::/8), not internet-routable
+        # Use for internal services, databases, service mesh
+        ula:
+          # Global ULA pool
+          - name: ipv6-ula-global
+            netmaskLength: 40  # AWS assigns from fd00::/8
+            allocations:
+              netmaskLength:
+                default: 44   # Carve /44 per region
+            description: Global ULA IPv6 pool
+
+          # Regional ULA pool - allocate VPCs from here
+          - name: ipv6-ula-us-east-1
+            sourcePoolRef: ipv6-ula-global
             locale: us-east-1
-            netmaskLength: 52
+            netmaskLength: 44
+            allocations:
+              netmaskLength:
+                default: 48   # /48 per VPC (65k subnets)
+                min: 48
+                max: 56
+            description: Regional ULA IPv6 for us-east-1 VPCs
+
+        # GUA pools - Amazon-provided public IPv6
+        # Internet-routable, use for public-facing workloads
+        gua:
+          - name: ipv6-gua-us-east-1
+            locale: us-east-1
+            netmaskLength: 52  # AWS provisions /52
             publicIpSource: amazon
             awsService: ec2
             allocations:
               netmaskLength:
-                default: 56
+                default: 56   # /56 per VPC (256 /64 subnets)
                 min: 52
                 max: 60
-            description: Public IPv6 pool (Amazon GUA)
-
-        # ULA pools - Private, not internet-routable
-        # Uses ULA (fd00::/8) - stays within your network.
-        # Use cases: databases, service mesh, backend APIs
-        ula:
-          - name: ipv6-private
-            region: us-east-1
-            locale: us-east-1
-            cidr: fd00:my:app::/48
-            allocations:
-              netmaskLength:
-                default: 56
-                min: 48
-                max: 64
-            description: Private IPv6 pool (ULA for internal microservices)
+            description: Public IPv6 pool (Amazon GUA) for internet-facing workloads

@@ -87,6 +87,7 @@ _items = [
             validate: True
             assertResources: [
                 # IPAM XRD - pools passed through directly with nested structure
+                # Now includes hierarchical pools with sourcePoolRef
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "IPAM"
@@ -104,24 +105,60 @@ _items = [
                         pools: {
                             ipv4: [
                                 {
-                                    name: "ipv4"
-                                    region: "us-east-1"
+                                    name: "ipv4-global"
                                     cidr: "10.0.0.0/8"
                                     allocations: {
                                         netmaskLength: {
-                                            default: 20
+                                            default: 12
+                                        }
+                                    }
+                                    description: "Global IPv4 pool"
+                                },
+                                {
+                                    name: "ipv4-us-east-1"
+                                    sourcePoolRef: "ipv4-global"
+                                    locale: "us-east-1"
+                                    cidr: "10.0.0.0/12"
+                                    allocations: {
+                                        netmaskLength: {
+                                            default: 16
                                             min: 16
                                             max: 24
                                         }
                                     }
-                                    description: "IPv4 pool for VPCs"
+                                    description: "Regional IPv4 pool for us-east-1 VPCs"
                                 }
                             ]
                             ipv6: {
+                                ula: [
+                                    {
+                                        name: "ipv6-ula-global"
+                                        netmaskLength: 40
+                                        allocations: {
+                                            netmaskLength: {
+                                                default: 44
+                                            }
+                                        }
+                                        description: "Global ULA IPv6 pool"
+                                    },
+                                    {
+                                        name: "ipv6-ula-us-east-1"
+                                        sourcePoolRef: "ipv6-ula-global"
+                                        locale: "us-east-1"
+                                        netmaskLength: 44
+                                        allocations: {
+                                            netmaskLength: {
+                                                default: 48
+                                                min: 48
+                                                max: 56
+                                            }
+                                        }
+                                        description: "Regional ULA IPv6 for us-east-1 VPCs"
+                                    }
+                                ]
                                 gua: [
                                     {
-                                        name: "ipv6-public"
-                                        region: "us-east-1"
+                                        name: "ipv6-gua-us-east-1"
                                         locale: "us-east-1"
                                         netmaskLength: 52
                                         publicIpSource: "amazon"
@@ -133,23 +170,7 @@ _items = [
                                                 max: 60
                                             }
                                         }
-                                        description: "Public IPv6 pool (Amazon GUA)"
-                                    }
-                                ]
-                                ula: [
-                                    {
-                                        name: "ipv6-private"
-                                        region: "us-east-1"
-                                        locale: "us-east-1"
-                                        cidr: "fd00:my:app::/48"
-                                        allocations: {
-                                            netmaskLength: {
-                                                default: 56
-                                                min: 48
-                                                max: 64
-                                            }
-                                        }
-                                        description: "Private IPv6 pool (ULA for internal microservices)"
+                                        description: "Public IPv6 pool (Amazon GUA) for internet-facing workloads"
                                     }
                                 ]
                             }
@@ -335,9 +356,11 @@ _items = [
     },
 
     # =========================================================================
-    # Enterprise Example - IPAM with nested pool structure
+    # Enterprise Example - IPAM basic structure
     # =========================================================================
-    # Tests that IPAM XRD uses pools.ipv4[], pools.ipv6.gua[], pools.ipv6.ula[]
+    # Tests that IPAM XRD is created with correct basic configuration
+    # Note: Pool structure is passed through from Foundation, so we just verify
+    # the IPAM resource is created with correct base settings
 
     metav1alpha1.CompositionTest{
         metadata.name: "test-foundation-enterprise-ipam-pool-structure"
@@ -348,7 +371,7 @@ _items = [
             timeoutSeconds: 120
             validate: True
             assertResources: [
-                # IPAM XRD with nested pool structure
+                # IPAM XRD - verify basic settings (pools are pass-through)
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "IPAM"
@@ -362,7 +385,7 @@ _items = [
                             kind: "ProviderConfig"
                         }
                         region: "us-east-1"
-                        operatingRegions: ["us-east-1", "us-west-2", "eu-west-1"]
+                        operatingRegions: ["us-east-1", "us-west-2"]
                     }
                 }
             ]
