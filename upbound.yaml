@@ -23,7 +23,7 @@ spec:
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
     package: ghcr.io/hops-ops/configuration-aws-ipam
-    version: '>=v0.11.0'
+    version: '>=v0.14.0'
   description: |
     Foundation XRD - A unified API for creating the complete AWS foundational layer.
     Composes Organization, IdentityCenter, and IPAM XRDs with automatic account ID
