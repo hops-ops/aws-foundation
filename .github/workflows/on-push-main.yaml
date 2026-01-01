@@ -58,7 +58,7 @@ jobs:
       - validate
       - test
       - e2e
-    uses: unbounded-tech/workflow-vnext-tag/.github/workflows/workflow.yaml@v1.20.1
+    uses: unbounded-tech/workflow-vnext-tag/.github/workflows/workflow.yaml@v1.20.2
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
     with:
