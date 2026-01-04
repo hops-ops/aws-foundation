@@ -184,7 +184,7 @@ _items = [
     # =========================================================================
     # Enterprise Example Tests - Initial Render
     # =========================================================================
-    # Tests for multi-account foundation with Organization
+    # Tests for multi-account foundation with Organization (team-based model)
 
     metav1alpha1.CompositionTest{
         metadata.name: "test-foundation-enterprise-organization"
@@ -196,6 +196,7 @@ _items = [
             validate: True
             assertResources: [
                 # Organization XRD - asserts the Foundation creates the Organization XRD
+                # Note: Foundation nests accounts inside OUs for the Organization XRD
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "Organization"
@@ -211,74 +212,80 @@ _items = [
                         tags: {
                             hops: "true"
                             organization: "acme"
-                            environment: "production"
                             "managed-by": "crossplane"
                         }
                         organization: {
                             managementPolicies: ["*"]
                             awsServiceAccessPrincipals: [
+                                "iam.amazonaws.com",
                                 "sso.amazonaws.com",
+                                "account.amazonaws.com",
                                 "ipam.amazonaws.com",
                                 "ram.amazonaws.com"
                             ]
                         }
+                        # Accounts are nested inside their respective OUs
                         organizationalUnits: [
                             {
                                 path: "Security"
                                 accounts: [
                                     {
-                                        name: "acme-security-tooling"
-                                        email: "security-tooling@acme.example.com"
+                                        name: "acme-security"
+                                        email: "aws-security@acme.example.com"
                                         tags: {team: "security"}
                                     }
                                 ]
                             },
                             {
-                                path: "Infrastructure"
+                                path: "Platform"
                                 accounts: [
                                     {
-                                        name: "acme-shared-services"
-                                        email: "shared-services@acme.example.com"
+                                        name: "acme-platform"
+                                        email: "aws-platform@acme.example.com"
                                         tags: {team: "platform"}
                                     }
                                 ]
                             },
-                            {path: "Workloads"},
+                            {path: "Teams"},
                             {
-                                path: "Workloads/Prod"
+                                path: "Teams/Alpha"
                                 accounts: [
                                     {
-                                        name: "acme-prod"
-                                        email: "prod@acme.example.com"
-                                        tags: {environment: "production"}
+                                        name: "acme-alpha"
+                                        email: "aws-alpha@acme.example.com"
+                                        tags: {team: "alpha"}
                                     }
                                 ]
                             },
                             {
-                                path: "Workloads/Non-Prod"
+                                path: "Teams/Beta"
                                 accounts: [
                                     {
-                                        name: "acme-staging"
-                                        email: "staging@acme.example.com"
-                                        tags: {environment: "staging"}
-                                    },
-                                    {
-                                        name: "acme-dev"
-                                        email: "dev@acme.example.com"
-                                        tags: {environment: "development"}
+                                        name: "acme-beta"
+                                        email: "aws-beta@acme.example.com"
+                                        tags: {team: "beta"}
                                     }
                                 ]
                             },
-                            {path: "Sandbox"}
+                            {
+                                path: "Teams/Data"
+                                accounts: [
+                                    {
+                                        name: "acme-data"
+                                        email: "aws-data@acme.example.com"
+                                        tags: {team: "data"}
+                                    }
+                                ]
+                            }
                         ]
                         delegatedAdministrators: [
                             {
                                 servicePrincipal: "sso.amazonaws.com"
-                                accountRef: {name: "acme-shared-services"}
+                                accountRef: {name: "acme-platform"}
                             },
                             {
                                 servicePrincipal: "ipam.amazonaws.com"
-                                accountRef: {name: "acme-shared-services"}
+                                accountRef: {name: "acme-platform"}
                             }
                         ]
                     }
@@ -297,6 +304,8 @@ _items = [
             validate: True
             assertResources: [
                 # IdentityCenter XRD - asserts the Foundation creates the IdentityCenter XRD
+                # Note: On initial render without Organization ready, assignToAccounts is not populated
+                # (account names resolve to IDs only after Organization status is available)
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "IdentityCenter"
@@ -314,16 +323,24 @@ _items = [
                         organizationName: "acme"
                         groups: [
                             {
-                                name: "Administrators"
-                                description: "Full administrative access to all accounts"
+                                name: "PlatformAdmins"
+                                description: "Full access to all accounts"
                             },
                             {
-                                name: "Developers"
-                                description: "Development access to non-production accounts"
+                                name: "SecurityTeam"
+                                description: "Security tooling access"
                             },
                             {
-                                name: "ReadOnly"
-                                description: "Read-only access for auditing and compliance"
+                                name: "TeamAlpha"
+                                description: "Alpha team members"
+                            },
+                            {
+                                name: "TeamBeta"
+                                description: "Beta team members"
+                            },
+                            {
+                                name: "DataEngineers"
+                                description: "Data team members"
                             }
                         ]
                         permissionSets: [
@@ -332,21 +349,35 @@ _items = [
                                 description: "Full administrator access"
                                 sessionDuration: "PT4H"
                                 managedPolicies: ["arn:aws:iam::aws:policy/AdministratorAccess"]
-                                assignToGroups: ["Administrators"]
+                                assignToGroups: ["PlatformAdmins"]
                             },
                             {
-                                name: "DeveloperAccess"
-                                description: "Developer access for non-prod environments"
+                                name: "SecurityAudit"
+                                description: "Security audit access"
+                                sessionDuration: "PT4H"
+                                managedPolicies: ["arn:aws:iam::aws:policy/SecurityAudit"]
+                                assignToGroups: ["SecurityTeam"]
+                            },
+                            {
+                                name: "AlphaAccess"
+                                description: "Team Alpha access"
                                 sessionDuration: "PT8H"
                                 managedPolicies: ["arn:aws:iam::aws:policy/PowerUserAccess"]
-                                assignToGroups: ["Developers"]
+                                assignToGroups: ["TeamAlpha"]
                             },
                             {
-                                name: "ViewOnlyAccess"
-                                description: "Read-only access for compliance review"
-                                sessionDuration: "PT1H"
-                                managedPolicies: ["arn:aws:iam::aws:policy/ViewOnlyAccess"]
-                                assignToGroups: ["ReadOnly"]
+                                name: "BetaAccess"
+                                description: "Team Beta access"
+                                sessionDuration: "PT8H"
+                                managedPolicies: ["arn:aws:iam::aws:policy/PowerUserAccess"]
+                                assignToGroups: ["TeamBeta"]
+                            },
+                            {
+                                name: "DataAccess"
+                                description: "Data team access"
+                                sessionDuration: "PT8H"
+                                managedPolicies: ["arn:aws:iam::aws:policy/PowerUserAccess"]
+                                assignToGroups: ["DataEngineers"]
                             }
                         ]
                     }
@@ -385,7 +416,7 @@ _items = [
                             kind: "ProviderConfig"
                         }
                         region: "us-east-1"
-                        operatingRegions: ["us-east-1", "us-west-2"]
+                        operatingRegions: ["us-east-1"]
                     }
                 }
             ]
@@ -425,11 +456,11 @@ _items = [
                             rootId: "r-acme"
                         }
                         accounts: [
-                            {name: "acme-security-tooling", id: "222222222222", ready: True},
-                            {name: "acme-shared-services", id: "333333333333", ready: True},
-                            {name: "acme-prod", id: "444444444444", ready: True},
-                            {name: "acme-staging", id: "555555555555", ready: True},
-                            {name: "acme-dev", id: "666666666666", ready: True}
+                            {name: "acme-security", id: "222222222222", ready: True},
+                            {name: "acme-platform", id: "333333333333", ready: True},
+                            {name: "acme-alpha", id: "444444444444", ready: True},
+                            {name: "acme-beta", id: "555555555555", ready: True},
+                            {name: "acme-data", id: "666666666666", ready: True}
                         ]
                     }
                 }
@@ -450,12 +481,20 @@ _items = [
                                 assignToAccounts: ["333333333333", "222222222222", "444444444444", "555555555555", "666666666666"]
                             },
                             {
-                                name: "DeveloperAccess"
-                                assignToAccounts: ["555555555555", "666666666666"]
+                                name: "SecurityAudit"
+                                assignToAccounts: ["222222222222", "444444444444", "555555555555", "666666666666"]
                             },
                             {
-                                name: "ViewOnlyAccess"
-                                assignToAccounts: ["333333333333", "222222222222", "444444444444", "555555555555", "666666666666"]
+                                name: "AlphaAccess"
+                                assignToAccounts: ["444444444444"]
+                            },
+                            {
+                                name: "BetaAccess"
+                                assignToAccounts: ["555555555555"]
+                            },
+                            {
+                                name: "DataAccess"
+                                assignToAccounts: ["666666666666"]
                             }
                         ]
                     }
