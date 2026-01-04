@@ -35,24 +35,33 @@ spec:
                   enum: ["*", Create, Observe, Update, Delete, LateInitialize]
                 default: ["*"]
 
-              aws:
+              providerConfigRef:
                 type: object
-                description: AWS provider configuration.
+                description: AWS provider config reference. Falls back to metadata.name.
                 properties:
-                  providerConfig:
+                  name:
                     type: string
-                    description: Default AWS provider config name. Falls back to metadata.name.
-                  region:
+                    description: Provider config name.
+                  kind:
                     type: string
-                    description: Default AWS region for resources that require it.
+                    description: Provider config kind.
+                    default: ProviderConfig
 
-              k8s:
+              kubernetesProviderConfigRef:
                 type: object
-                description: Kubernetes provider configuration for managing in-cluster resources.
+                description: Kubernetes provider config reference. Falls back to metadata.name.
                 properties:
-                  providerConfig:
+                  name:
                     type: string
-                    description: Kubernetes provider config name. Falls back to metadata.name then "default".
+                    description: Provider config name.
+                  kind:
+                    type: string
+                    description: Provider config kind.
+                    default: ProviderConfig
+
+              region:
+                type: string
+                description: Default AWS region for resources that require it.
 
               memberAccountsProviderConfigs:
                 type: object
@@ -395,7 +404,7 @@ spec:
                 description: |
                   VPC networks to create. Each network creates an aws-network Network instance.
                   When account is specified, uses that account's ProviderConfig.
-                  When account is omitted, uses spec.aws.providerConfig (management account).
+                  When account is omitted, uses spec.providerConfigRef (management account).
                 items:
                   type: object
                   required:
@@ -412,7 +421,7 @@ spec:
                       description: |
                         Account name from spec.accounts[].name.
                         Resolves to ProviderConfig for that account.
-                        Omit to use management account (spec.aws.providerConfig).
+                        Omit to use management account (spec.providerConfigRef).
                     region:
                       type: string
                       description: AWS region for this network.
@@ -584,3 +593,18 @@ spec:
                     subnets:
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
+              spec:
+                type: object
+                description: |
+                  Debugging output showing raw input vs effective config.
+                  Helps identify where defaults are applied or misconfigurations exist.
+                x-kubernetes-preserve-unknown-fields: true
+                properties:
+                  raw:
+                    type: object
+                    description: User's original spec (before defaults applied).
+                    x-kubernetes-preserve-unknown-fields: true
+                  effective:
+                    type: object
+                    description: Spec with all defaults applied (what templates actually use).
+                    x-kubernetes-preserve-unknown-fields: true

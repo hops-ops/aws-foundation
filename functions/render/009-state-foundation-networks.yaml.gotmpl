@@ -1,0 +1,138 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Computed State: Networks
+# =========================
+# Networks computed state with render flags and resolved IPAM pool IDs.
+
+{{- $eff := $state.spec.effective }}
+{{- $networks := $eff.networks.items | default list }}
+{{- $networkDefaults := $eff.networkDefaults }}
+{{- $tags := $eff.tags }}
+
+# Networks render flag from spec.effective.networks.enabled
+{{- $render := $eff.networks.enabled }}
+
+# Build processed networks list with resolved values
+{{- $processedNetworks := list }}
+{{- range $network := $networks }}
+  {{- $networkName := $network.name }}
+  {{- $networkAccount := $network.account | default "" }}
+  {{- $networkRegion := $network.region }}
+
+  # Determine provider config: use account name if specified, else management account
+  {{- $networkProviderConfig := "" }}
+  {{- if $networkAccount }}
+    {{- $networkProviderConfig = $networkAccount }}
+  {{- else }}
+    {{- $networkProviderConfig = $eff.providerConfigRef.name }}
+  {{- end }}
+
+  # Merge subnet layout: defaults -> network-specific
+  {{- $mergedSubnetLayout := merge ($network.subnetLayout | default dict) $networkDefaults.subnetLayout }}
+
+  # Merge NAT: defaults -> network-specific
+  {{- $mergedNat := merge ($network.nat | default dict) $networkDefaults.nat }}
+
+  # Merge flow logs: defaults -> network-specific
+  {{- $mergedFlowLogs := merge ($network.flowLogs | default dict) $networkDefaults.flowLogs }}
+
+  # Merge tags: spec.tags -> networkDefaults.tags -> network-specific
+  {{- $mergedTags := merge ($network.tags | default dict) $networkDefaults.tags $tags }}
+
+  # IPAM configuration - resolve poolRef to poolId
+  {{- $networkIpam := $network.ipam | default dict }}
+  {{- $networkIpamIpv4 := $networkIpam.ipv4 | default dict }}
+  {{- $networkIpamIpv6Ula := $networkIpam.ipv6Ula | default dict }}
+
+  # Resolve IPv4 poolRef -> poolId from IPAM status
+  {{- $ipv4PoolRef := $networkIpamIpv4.poolRef | default "" }}
+  {{- $ipv4PoolId := $networkIpamIpv4.poolId | default "" }}
+  {{- $ipv4NetmaskLength := $networkIpamIpv4.netmaskLength | default 16 }}
+  {{- $ipv4Enabled := or (ne $ipv4PoolRef "") (ne $ipv4PoolId "") }}
+
+  # If poolRef is set, resolve from IPAM observed state
+  {{- if and $ipv4Enabled (ne $ipv4PoolRef "") }}
+    {{- $resolvedPoolId := get $state.observed.ipam.poolIdByName $ipv4PoolRef }}
+    {{- if and $resolvedPoolId (ne $resolvedPoolId "Pending") }}
+      {{- $ipv4PoolId = $resolvedPoolId }}
+    {{- end }}
+  {{- end }}
+
+  # Resolve IPv6 ULA poolRef -> poolId from IPAM status
+  {{- $ipv6UlaPoolRef := $networkIpamIpv6Ula.poolRef | default "" }}
+  {{- $ipv6UlaPoolId := $networkIpamIpv6Ula.poolId | default "" }}
+  {{- $ipv6UlaNetmaskLength := $networkIpamIpv6Ula.netmaskLength | default 56 }}
+  {{- $ipv6UlaEnabled := or (ne $ipv6UlaPoolRef "") (ne $ipv6UlaPoolId "") }}
+
+  # If poolRef is set, resolve from IPAM observed state
+  {{- if and $ipv6UlaEnabled (ne $ipv6UlaPoolRef "") }}
+    {{- $resolvedPoolId := get $state.observed.ipam.poolIdByName $ipv6UlaPoolRef }}
+    {{- if and $resolvedPoolId (ne $resolvedPoolId "Pending") }}
+      {{- $ipv6UlaPoolId = $resolvedPoolId }}
+    {{- end }}
+  {{- end }}
+
+  # Determine if this network should render
+  # For IPAM-based networks, we need the pool ID to be resolved (not Pending)
+  {{- $shouldRender := true }}
+  {{- if $ipv4Enabled }}
+    {{- if or (eq $ipv4PoolId "") (eq $ipv4PoolId "Pending") }}
+      {{- $shouldRender = false }}
+    {{- end }}
+  {{- end }}
+  {{- if and $shouldRender $ipv6UlaEnabled }}
+    {{- if or (eq $ipv6UlaPoolId "") (eq $ipv6UlaPoolId "Pending") }}
+      {{- $shouldRender = false }}
+    {{- end }}
+  {{- end }}
+
+  # For account-based networks, check if account ProviderConfig is ready
+  {{- if and $shouldRender (ne $networkAccount "") }}
+    {{- $accountReady := get $state.observed.organization.accountNameReady $networkAccount | default false }}
+    {{- if not $accountReady }}
+      {{- $shouldRender = false }}
+    {{- end }}
+  {{- end }}
+
+  # Build processed network entry
+  {{- $processedNetwork := dict
+    "name" $networkName
+    "render" $shouldRender
+    "account" $networkAccount
+    "region" $networkRegion
+    "providerConfig" $networkProviderConfig
+    "subnetLayout" $mergedSubnetLayout
+    "nat" $mergedNat
+    "flowLogs" $mergedFlowLogs
+    "tags" $mergedTags
+    "vpc" ($network.vpc | default dict)
+    "internetGateway" ($network.internetGateway | default dict)
+    "egressOnlyInternetGateway" ($network.egressOnlyInternetGateway | default dict)
+    "routeTables" ($network.routeTables | default dict)
+    "transitGateway" ($network.transitGateway | default dict)
+    "managementPolicies" ($network.managementPolicies | default $eff.managementPolicies)
+    "ipam" (dict
+      "ipv4" (dict
+        "enabled" $ipv4Enabled
+        "poolRef" $ipv4PoolRef
+        "poolId" $ipv4PoolId
+        "netmaskLength" $ipv4NetmaskLength
+      )
+      "ipv6Ula" (dict
+        "enabled" $ipv6UlaEnabled
+        "poolRef" $ipv6UlaPoolRef
+        "poolId" $ipv6UlaPoolId
+        "netmaskLength" $ipv6UlaNetmaskLength
+      )
+    )
+  }}
+  {{- $processedNetworks = append $processedNetworks $processedNetwork }}
+{{- end }}
+
+# Set foundation.networks slice
+{{- $networksState := dict
+  "render" $render
+  "processed" $processedNetworks
+}}
+{{- $state = set $state "foundation" (merge $state.foundation (dict "networks" $networksState)) }}

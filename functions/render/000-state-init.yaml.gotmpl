@@ -1,0 +1,139 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# State Initialization
+# ====================
+# Initialize $state with spec.raw (user input) and spec.effective (with defaults).
+# This is the single source of truth for all template state.
+#
+# $state structure:
+#   spec.raw       - exactly what user provided
+#   spec.effective - with defaults applied (templates use this)
+#   observed       - from $.observed.resources (populated by 01-04 files)
+#   foundation     - computed state for this XRD (populated by 05-09 files)
+
+{{- $xr := getCompositeResource . }}
+{{- $metadata := $xr.metadata }}
+{{- $spec := $xr.spec }}
+{{- $name := $metadata.name }}
+
+# =============================================================================
+# Build spec.effective with defaults
+# =============================================================================
+
+# Provider config refs
+{{- $awsProviderConfigRef := $spec.providerConfigRef | default dict }}
+{{- $k8sProviderConfigRef := $spec.kubernetesProviderConfigRef | default dict }}
+
+# Region at spec level
+{{- $region := $spec.region | default "us-east-1" }}
+{{- $defaultTags := dict "hops" "true" }}
+
+# Organization spec with defaults
+{{- $organization := $spec.organization | default dict }}
+{{- $organizationalUnits := $spec.organizationalUnits | default list }}
+{{- $accounts := $spec.accounts | default list }}
+{{- $delegatedAdministrators := $spec.delegatedAdministrators | default list }}
+
+# Identity Center spec with defaults
+{{- $identityCenter := $spec.identityCenter | default dict }}
+
+# IPAM spec with defaults
+{{- $ipam := $spec.ipam | default dict }}
+{{- $ipamPools := $ipam.pools | default dict }}
+
+# Member accounts provider configs
+{{- $memberAccountsProviderConfigs := $spec.memberAccountsProviderConfigs | default dict }}
+
+# Networks spec with defaults
+{{- $networkDefaults := $spec.networkDefaults | default dict }}
+{{- $networks := $spec.networks | default list }}
+
+# =============================================================================
+# Initialize $state
+# =============================================================================
+
+{{- $state := dict
+  "spec" (dict
+    "raw" $spec
+    "effective" (dict
+      "name" $name
+      "managementPolicies" ($spec.managementPolicies | default (list "*"))
+
+      "providerConfigRef" (dict
+        "name" ($awsProviderConfigRef.name | default "default")
+        "kind" ($awsProviderConfigRef.kind | default "ProviderConfig")
+      )
+      "kubernetesProviderConfigRef" (dict
+        "name" ($k8sProviderConfigRef.name | default "default")
+        "kind" ($k8sProviderConfigRef.kind | default "ProviderConfig")
+      )
+
+      "region" $region
+
+      "tags" (merge $defaultTags ($spec.tags | default dict))
+
+      "organization" (dict
+        "enabled" (or (gt (len $organizationalUnits) 0) (gt (len $accounts) 0))
+        "externalName" ($organization.externalName | default "")
+        "managementPolicies" ($organization.managementPolicies | default ($spec.managementPolicies | default (list "*")))
+        "awsServiceAccessPrincipals" ($organization.awsServiceAccessPrincipals | default list)
+      )
+      "organizationalUnits" $organizationalUnits
+      "accounts" $accounts
+      "delegatedAdministrators" $delegatedAdministrators
+
+      "identityCenter" (dict
+        "enabled" ($identityCenter.enabled | default (ne ($identityCenter.identityStoreId | default "") ""))
+        "region" ($identityCenter.region | default $region)
+        "providerConfigRef" (dict
+          "name" ((($identityCenter.providerConfigRef | default dict).name) | default ($awsProviderConfigRef.name | default $name | default "default"))
+          "kind" ((($identityCenter.providerConfigRef | default dict).kind) | default ($awsProviderConfigRef.kind | default "ProviderConfig"))
+        )
+        "identityStoreId" ($identityCenter.identityStoreId | default "")
+        "instanceArn" ($identityCenter.instanceArn | default "")
+        "sessionDuration" ($identityCenter.sessionDuration | default "PT1H")
+        "groups" ($identityCenter.groups | default list)
+        "users" ($identityCenter.users | default list)
+        "permissionSets" ($identityCenter.permissionSets | default list)
+      )
+
+      "ipam" (dict
+        "enabled" ($ipam.enabled | default (or
+          (gt (len ($ipamPools.ipv4 | default list)) 0)
+          (gt (len ((($ipamPools.ipv6 | default dict).gua | default list))) 0)
+          (gt (len ((($ipamPools.ipv6 | default dict).ula | default list))) 0)
+        ))
+        "providerConfigRef" (dict
+          "name" ((($ipam.providerConfigRef | default dict).name) | default ($awsProviderConfigRef.name | default $name | default "default"))
+          "kind" ((($ipam.providerConfigRef | default dict).kind) | default ($awsProviderConfigRef.kind | default "ProviderConfig"))
+        )
+        "region" ($ipam.region | default $region)
+        "operatingRegions" ($ipam.operatingRegions | default (list ($ipam.region | default $region)))
+        "managementPolicies" ($ipam.managementPolicies | default ($spec.managementPolicies | default (list "*")))
+        "externalName" ($ipam.externalName | default "")
+        "forProvider" ($ipam.forProvider | default dict)
+        "pools" $ipamPools
+      )
+
+      "memberAccountsProviderConfigs" (dict
+        "enabled" ($memberAccountsProviderConfigs.enabled | default true)
+        "managementPolicies" ($memberAccountsProviderConfigs.managementPolicies | default (list "*"))
+        "namespace" ($memberAccountsProviderConfigs.namespace | default "default")
+      )
+
+      "networkDefaults" (dict
+        "subnetLayout" (($networkDefaults).subnetLayout | default dict)
+        "nat" (($networkDefaults).nat | default dict)
+        "flowLogs" (($networkDefaults).flowLogs | default dict)
+        "tags" (($networkDefaults).tags | default dict)
+      )
+      "networks" (dict
+        "enabled" (gt (len $networks) 0)
+        "items" $networks
+      )
+    )
+  )
+  "observed" (dict)
+  "foundation" (dict)
+}}

@@ -1,0 +1,48 @@
+# Network XRD - Data Team VPC ready with dual-stack, 3 AZs
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Network
+metadata:
+  name: acme-data
+  namespace: acme
+  annotations:
+    crossplane.io/composition-resource-name: network-data
+    gotemplating.fn.crossplane.io/composition-resource-name: network-data
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  network:
+    vpcId: vpc-0data1234567890ab
+    cidr:
+      ipv4: 10.2.0.0/16
+      ipv6Ula: fd00:acme:5600:0300::/56
+    subnets:
+      public:
+        - name: public-a
+          id: subnet-0datapuba123456
+          az: us-east-1a
+          cidr: 10.2.0.0/24
+        - name: public-b
+          id: subnet-0datapubb123456
+          az: us-east-1b
+          cidr: 10.2.1.0/24
+        - name: public-c
+          id: subnet-0datapubc123456
+          az: us-east-1c
+          cidr: 10.2.2.0/24
+      private:
+        - name: private-a
+          id: subnet-0datapriva12345
+          az: us-east-1a
+          cidr: 10.2.16.0/20
+        - name: private-b
+          id: subnet-0dataprivb12345
+          az: us-east-1b
+          cidr: 10.2.32.0/20
+        - name: private-c
+          id: subnet-0dataprivc12345
+          az: us-east-1c
+          cidr: 10.2.48.0/20
+  ready: true

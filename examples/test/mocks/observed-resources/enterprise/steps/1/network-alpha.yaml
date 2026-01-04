@@ -1,0 +1,48 @@
+# Network XRD - Team Alpha VPC ready with dual-stack, 3 AZs
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Network
+metadata:
+  name: acme-alpha
+  namespace: acme
+  annotations:
+    crossplane.io/composition-resource-name: network-alpha
+    gotemplating.fn.crossplane.io/composition-resource-name: network-alpha
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  network:
+    vpcId: vpc-0alpha123456789ab
+    cidr:
+      ipv4: 10.0.0.0/16
+      ipv6Ula: fd00:acme:5600:0100::/56
+    subnets:
+      public:
+        - name: public-a
+          id: subnet-0alphapuba12345
+          az: us-east-1a
+          cidr: 10.0.0.0/24
+        - name: public-b
+          id: subnet-0alphapubb12345
+          az: us-east-1b
+          cidr: 10.0.1.0/24
+        - name: public-c
+          id: subnet-0alphapubc12345
+          az: us-east-1c
+          cidr: 10.0.2.0/24
+      private:
+        - name: private-a
+          id: subnet-0alphapriva1234
+          az: us-east-1a
+          cidr: 10.0.16.0/20
+        - name: private-b
+          id: subnet-0alphaprivb1234
+          az: us-east-1b
+          cidr: 10.0.32.0/20
+        - name: private-c
+          id: subnet-0alphaprivc1234
+          az: us-east-1c
+          cidr: 10.0.48.0/20
+  ready: true

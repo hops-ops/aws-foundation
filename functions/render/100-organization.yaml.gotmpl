@@ -5,32 +5,34 @@
 # =================
 # Creates the aws-organization XRD with OUs, accounts, and delegated admins.
 
-{{- if $organizationEnabled }}
+{{- if $state.foundation.organization.render }}
+{{- $org := $state.foundation.organization }}
+{{- $eff := $state.spec.effective }}
 ---
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: Organization
 metadata:
-  name: {{ $name }}
+  name: {{ $state.foundation.name }}
   annotations:
     {{ setResourceNameAnnotation "organization" }}
 spec:
-  managementPolicies: {{ toJson $managementPolicies }}
-  {{- if $organizationExternalName }}
-  externalName: {{ $organizationExternalName | quote }}
+  managementPolicies: {{ toJson $state.foundation.managementPolicies }}
+  {{- if $org.externalName }}
+  externalName: {{ $org.externalName | quote }}
   {{- end }}
   providerConfigRef:
-    name: {{ $awsProviderConfig }}
-    kind: ProviderConfig
+    name: {{ $state.foundation.providerConfig.name }}
+    kind: {{ $state.foundation.providerConfig.kind }}
   tags:
-    {{- toYaml $tags | nindent 4 }}
+    {{- toYaml $state.foundation.tags | nindent 4 }}
   organization:
-    managementPolicies: {{ toJson $organizationManagementPolicies }}
-    {{- if gt (len $awsServiceAccessPrincipals) 0 }}
-    awsServiceAccessPrincipals: {{ toJson $awsServiceAccessPrincipals }}
+    managementPolicies: {{ toJson $org.managementPolicies }}
+    {{- if gt (len $org.awsServiceAccessPrincipals) 0 }}
+    awsServiceAccessPrincipals: {{ toJson $org.awsServiceAccessPrincipals }}
     {{- end }}
-  {{- if gt (len $ouWithAccounts) 0 }}
+  {{- if gt (len $org.ousWithAccounts) 0 }}
   organizationalUnits:
-    {{- range $ou := $ouWithAccounts }}
+    {{- range $ou := $org.ousWithAccounts }}
     - path: {{ $ou.path }}
       {{- if $ou.externalName }}
       externalName: {{ $ou.externalName | quote }}
@@ -38,7 +40,7 @@ spec:
       {{- if $ou.managementPolicies }}
       managementPolicies: {{ toJson $ou.managementPolicies }}
       {{- end }}
-      {{- $ouAccounts := $ou.accounts | default (list) }}
+      {{- $ouAccounts := $ou.accounts | default list }}
       {{- if gt (len $ouAccounts) 0 }}
       accounts:
         {{- range $account := $ouAccounts }}
@@ -58,9 +60,9 @@ spec:
       {{- end }}
     {{- end }}
   {{- end }}
-  {{- if gt (len $delegatedAdministrators) 0 }}
+  {{- if gt (len $eff.delegatedAdministrators) 0 }}
   delegatedAdministrators:
-    {{- range $da := $delegatedAdministrators }}
+    {{- range $da := $eff.delegatedAdministrators }}
     - servicePrincipal: {{ $da.servicePrincipal }}
       accountRef:
         name: {{ $da.account }}

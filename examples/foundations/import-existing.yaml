@@ -25,9 +25,11 @@ metadata:
 spec:
   managementPolicies: ["*"]
 
-  aws:
-    providerConfig: aws-management
-    region: us-east-1
+  providerConfigRef:
+    name: aws-management
+    kind: ProviderConfig
+
+  region: us-east-1
 
   tags:
     managed-by: crossplane
@@ -38,6 +40,10 @@ spec:
   # ---------------------------------------------------------------------------
   organization:
     externalName: o-abc123xyz  # Your existing organization ID
+    awsServiceAccessPrincipals:
+      - iam.amazonaws.com
+      - sso.amazonaws.com
+      - account.amazonaws.com
     # Don't delete the organization when Foundation is removed
     managementPolicies:
       - Create

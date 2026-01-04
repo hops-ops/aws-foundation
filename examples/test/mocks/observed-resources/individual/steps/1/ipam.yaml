@@ -1,0 +1,45 @@
+# IPAM XRD - Ready with hierarchical dual-stack pools
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: IPAM
+metadata:
+  name: my-foundation
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: ipam
+    gotemplating.fn.crossplane.io/composition-resource-name: ipam
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  id: ipam-0abc123def456789a
+  arn: arn:aws:ec2:us-east-1:111111111111:ipam/ipam-0abc123def456789a
+  privateDefaultScopeId: ipam-scope-0abc123priv456789
+  publicDefaultScopeId: ipam-scope-0abc123pub456789
+  pools:
+    ipv4:
+      - name: ipv4-global
+        id: ipam-pool-ipv4global1234
+        arn: arn:aws:ec2::111111111111:ipam-pool/ipam-pool-ipv4global1234
+        cidr: 10.0.0.0/8
+      - name: ipv4-us-east-1
+        id: ipam-pool-ipv4useast1234
+        arn: arn:aws:ec2::111111111111:ipam-pool/ipam-pool-ipv4useast1234
+        cidr: 10.0.0.0/12
+    ipv6:
+      ula:
+        - name: ipv6-ula-global
+          id: ipam-pool-ipv6ulaglob12
+          arn: arn:aws:ec2::111111111111:ipam-pool/ipam-pool-ipv6ulaglob12
+          cidr: fd00:1234::/40
+        - name: ipv6-ula-us-east-1
+          id: ipam-pool-ipv6ulaeast12
+          arn: arn:aws:ec2::111111111111:ipam-pool/ipam-pool-ipv6ulaeast12
+          cidr: fd00:1234:5600::/44
+      gua:
+        - name: ipv6-gua-us-east-1
+          id: ipam-pool-ipv6guaeast12
+          arn: arn:aws:ec2::111111111111:ipam-pool/ipam-pool-ipv6guaeast12
+          cidr: 2600:1f00::/52
+  ready: true

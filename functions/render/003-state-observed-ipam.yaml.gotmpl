@@ -1,0 +1,65 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Observed State: IPAM XRD
+# ========================
+# Extracts status from the composed IPAM XRD.
+
+{{- $raw := $.observed.resources | default dict }}
+{{- $entry := get $raw "ipam" | default dict }}
+{{- $resource := $entry.resource | default dict }}
+{{- $status := $resource.status | default dict }}
+
+# Check readiness from conditions
+{{- $ready := false }}
+{{- range ($status.conditions | default list) }}
+  {{- if and (eq .type "Ready") (eq .status "True") }}
+    {{- $ready = true }}
+  {{- end }}
+{{- end }}
+
+# Build pool lookups: name -> id/arn/cidr/type
+{{- $poolIdByName := dict }}
+{{- $poolArnByName := dict }}
+{{- $poolCidrByName := dict }}
+{{- $poolTypeByName := dict }}
+
+{{- $statusPools := $status.pools | default dict }}
+
+# IPv4 pools
+{{- range ($statusPools.ipv4 | default list) }}
+  {{- $poolIdByName = set $poolIdByName .name (.id | default "Pending") }}
+  {{- $poolArnByName = set $poolArnByName .name (.arn | default "Pending") }}
+  {{- $poolCidrByName = set $poolCidrByName .name (.cidr | default "Pending") }}
+  {{- $poolTypeByName = set $poolTypeByName .name "ipv4" }}
+{{- end }}
+
+# IPv6 ULA pools
+{{- $ipv6Status := $statusPools.ipv6 | default dict }}
+{{- range ($ipv6Status.ula | default list) }}
+  {{- $poolIdByName = set $poolIdByName .name (.id | default "Pending") }}
+  {{- $poolArnByName = set $poolArnByName .name (.arn | default "Pending") }}
+  {{- $poolCidrByName = set $poolCidrByName .name (.cidr | default "Pending") }}
+  {{- $poolTypeByName = set $poolTypeByName .name "ipv6-ula" }}
+{{- end }}
+
+# IPv6 GUA pools
+{{- range ($ipv6Status.gua | default list) }}
+  {{- $poolIdByName = set $poolIdByName .name (.id | default "Pending") }}
+  {{- $poolArnByName = set $poolArnByName .name (.arn | default "Pending") }}
+  {{- $poolCidrByName = set $poolCidrByName .name (.cidr | default "Pending") }}
+  {{- $poolTypeByName = set $poolTypeByName .name "ipv6-gua" }}
+{{- end }}
+
+# Set observed.ipam slice
+{{- $state = set $state "observed" (merge $state.observed (dict "ipam" (dict
+  "ready" $ready
+  "id" ($status.id | default "Pending")
+  "arn" ($status.arn | default "Pending")
+  "privateDefaultScopeId" ($status.privateDefaultScopeId | default "Pending")
+  "publicDefaultScopeId" ($status.publicDefaultScopeId | default "Pending")
+  "poolIdByName" $poolIdByName
+  "poolArnByName" $poolArnByName
+  "poolCidrByName" $poolCidrByName
+  "poolTypeByName" $poolTypeByName
+))) }}

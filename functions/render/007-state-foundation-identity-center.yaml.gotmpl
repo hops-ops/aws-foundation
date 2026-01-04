@@ -1,0 +1,49 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Computed State: Identity Center
+# =================================
+# Identity Center computed state with render flag.
+
+{{- $eff := $state.spec.effective }}
+{{- $ic := $eff.identityCenter }}
+
+# Identity center is enabled if identityStoreId is provided
+{{- $render := $ic.enabled }}
+
+# Build permission sets with resolved account IDs for assignments
+# Permission sets can reference accounts by name which need to be resolved to IDs
+{{- $permissionSetsWithResolvedAccounts := list }}
+{{- range $ps := $ic.permissionSets }}
+  {{- $resolvedAccountIds := list }}
+
+  # Resolve assignToAccounts (which may be account names or IDs)
+  {{- range $accountRef := ($ps.assignToAccounts | default list) }}
+    # Check if this is an account name that needs resolution
+    {{- $resolvedId := get $state.observed.organization.accountNameToId $accountRef }}
+    {{- if and $resolvedId (ne $resolvedId "Pending") }}
+      {{- $resolvedAccountIds = append $resolvedAccountIds $resolvedId }}
+    {{- else }}
+      # Assume it's already an account ID
+      {{- $resolvedAccountIds = append $resolvedAccountIds $accountRef }}
+    {{- end }}
+  {{- end }}
+
+  {{- $permissionSetsWithResolvedAccounts = append $permissionSetsWithResolvedAccounts (merge (dict
+    "assignToAccounts" $resolvedAccountIds
+  ) $ps) }}
+{{- end }}
+
+# Set foundation.identityCenter slice
+{{- $identityCenter := dict
+  "render" $render
+  "region" $ic.region
+  "providerConfig" $ic.providerConfigRef
+  "identityStoreId" $ic.identityStoreId
+  "instanceArn" $ic.instanceArn
+  "sessionDuration" $ic.sessionDuration
+  "groups" $ic.groups
+  "users" $ic.users
+  "permissionSets" $permissionSetsWithResolvedAccounts
+}}
+{{- $state = set $state "foundation" (merge $state.foundation (dict "identityCenter" $identityCenter)) }}

@@ -1,0 +1,56 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Observed State: Organization XRD
+# =================================
+# Extracts status from the composed Organization XRD.
+
+{{- $raw := $.observed.resources | default dict }}
+{{- $entry := get $raw "organization" | default dict }}
+{{- $resource := $entry.resource | default dict }}
+{{- $status := $resource.status | default dict }}
+
+# Check readiness from conditions
+{{- $ready := false }}
+{{- range ($status.conditions | default list) }}
+  {{- if and (eq .type "Ready") (eq .status "True") }}
+    {{- $ready = true }}
+  {{- end }}
+{{- end }}
+
+# Build accounts list with ready status
+{{- $accounts := list }}
+{{- $allAccountsReady := true }}
+{{- range ($status.accounts | default list) }}
+  {{- $accounts = append $accounts . }}
+  {{- if not (.ready | default false) }}
+    {{- $allAccountsReady = false }}
+  {{- end }}
+{{- end }}
+
+# Build account lookups from observed status
+{{- $accountNameToId := dict }}
+{{- $accountNameReady := dict }}
+{{- range ($status.accounts | default list) }}
+  {{- $accountNameToId = set $accountNameToId .name (.id | default "Pending") }}
+  {{- $accountNameReady = set $accountNameReady .name (.ready | default false) }}
+{{- end }}
+
+# Build OU path to ID lookup from observed status
+{{- $ouPathToId := dict }}
+{{- range $path, $value := ($status.organizationalUnits | default dict) }}
+  {{- $ouPathToId = set $ouPathToId $path $value }}
+{{- end }}
+
+# Set observed.organization slice
+{{- $state = set $state "observed" (merge $state.observed (dict "organization" (dict
+  "ready" $ready
+  "allAccountsReady" $allAccountsReady
+  "id" ($status.organizationId | default "Pending")
+  "managementAccountId" ($status.managementAccountId | default "Pending")
+  "rootId" ($status.rootId | default "Pending")
+  "ouPathToId" $ouPathToId
+  "accounts" $accounts
+  "accountNameToId" $accountNameToId
+  "accountNameReady" $accountNameReady
+))) }}

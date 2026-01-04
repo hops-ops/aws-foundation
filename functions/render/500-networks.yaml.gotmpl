@@ -1,0 +1,99 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Networks - aws-network Network XRDs
+# ====================================
+# Creates Network XRD instances for each network in spec.networks[].
+# Networks can target member accounts (via ProviderConfig) or management account.
+# IPAM poolRef is resolved to poolId from IPAM XRD status.
+
+{{- if $state.foundation.networks.render }}
+{{- range $network := $state.foundation.networks.processed }}
+  {{- if $network.render }}
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Network
+metadata:
+  name: {{ $state.foundation.name }}-{{ $network.name }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "network-%s" $network.name) }}
+spec:
+  managementPolicies: {{ toJson $network.managementPolicies }}
+  providerConfigRef:
+    name: {{ $network.providerConfig }}
+    kind: ProviderConfig
+  region: {{ $network.region }}
+  {{- if gt (len $network.tags) 0 }}
+  tags:
+    {{- toYaml $network.tags | nindent 4 }}
+  {{- end }}
+
+  {{- /* IPAM configuration */}}
+  {{- $ipv4 := $network.ipam.ipv4 }}
+  {{- $ipv6Ula := $network.ipam.ipv6Ula }}
+  {{- if or $ipv4.enabled $ipv6Ula.enabled }}
+  ipam:
+    {{- if $ipv4.enabled }}
+    ipv4:
+      enabled: true
+      poolId: {{ $ipv4.poolId }}
+      netmaskLength: {{ $ipv4.netmaskLength }}
+    {{- end }}
+    {{- if $ipv6Ula.enabled }}
+    ipv6Ula:
+      enabled: true
+      poolId: {{ $ipv6Ula.poolId }}
+      netmaskLength: {{ $ipv6Ula.netmaskLength }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* VPC configuration - pass through all fields */}}
+  {{- if gt (len $network.vpc) 0 }}
+  vpc:
+    {{- toYaml $network.vpc | nindent 4 }}
+  {{- end }}
+
+  {{- /* Subnet layout - pass through all fields */}}
+  {{- if gt (len $network.subnetLayout) 0 }}
+  subnetLayout:
+    {{- toYaml $network.subnetLayout | nindent 4 }}
+  {{- end }}
+
+  {{- /* NAT configuration - pass through all fields */}}
+  {{- if gt (len $network.nat) 0 }}
+  nat:
+    {{- toYaml $network.nat | nindent 4 }}
+  {{- end }}
+
+  {{- /* Internet Gateway - pass through from network spec */}}
+  {{- if gt (len $network.internetGateway) 0 }}
+  internetGateway:
+    {{- toYaml $network.internetGateway | nindent 4 }}
+  {{- end }}
+
+  {{- /* Egress-Only Internet Gateway - pass through from network spec */}}
+  {{- if gt (len $network.egressOnlyInternetGateway) 0 }}
+  egressOnlyInternetGateway:
+    {{- toYaml $network.egressOnlyInternetGateway | nindent 4 }}
+  {{- end }}
+
+  {{- /* Route Tables - pass through from network spec */}}
+  {{- if gt (len $network.routeTables) 0 }}
+  routeTables:
+    {{- toYaml $network.routeTables | nindent 4 }}
+  {{- end }}
+
+  {{- /* Transit Gateway - pass through all fields */}}
+  {{- if gt (len $network.transitGateway) 0 }}
+  transitGateway:
+    {{- toYaml $network.transitGateway | nindent 4 }}
+  {{- end }}
+
+  {{- /* Flow logs - pass through all fields */}}
+  {{- if gt (len $network.flowLogs) 0 }}
+  flowLogs:
+    {{- toYaml $network.flowLogs | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,48 @@
+# Network XRD - Platform VPC ready with dual-stack, 3 AZs
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Network
+metadata:
+  name: acme-platform
+  namespace: acme
+  annotations:
+    crossplane.io/composition-resource-name: network-platform
+    gotemplating.fn.crossplane.io/composition-resource-name: network-platform
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  network:
+    vpcId: vpc-0platform12345678
+    cidr:
+      ipv4: 10.16.0.0/16
+      ipv6Ula: fd00:acme:5600:0400::/56
+    subnets:
+      public:
+        - name: public-a
+          id: subnet-0platpuba123456
+          az: us-east-1a
+          cidr: 10.16.0.0/24
+        - name: public-b
+          id: subnet-0platpubb123456
+          az: us-east-1b
+          cidr: 10.16.1.0/24
+        - name: public-c
+          id: subnet-0platpubc123456
+          az: us-east-1c
+          cidr: 10.16.2.0/24
+      private:
+        - name: private-a
+          id: subnet-0platpriva12345
+          az: us-east-1a
+          cidr: 10.16.16.0/20
+        - name: private-b
+          id: subnet-0platprivb12345
+          az: us-east-1b
+          cidr: 10.16.32.0/20
+        - name: private-c
+          id: subnet-0platprivc12345
+          az: us-east-1c
+          cidr: 10.16.48.0/20
+  ready: true

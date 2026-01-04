@@ -1,26 +1,26 @@
-# Enterprise: Production-grade AWS foundation
-# ============================================
-# Complete multi-account architecture following AWS best practices:
-# - OU hierarchy for security, infrastructure, and workloads
-# - Dedicated accounts for security tooling and shared services
-# - Identity Center with groups and permission sets
-# - IPAM with hierarchical pools (global → regional → environment)
-# - VPC networks in each account with consistent layouts
-# - Cross-account access with permission boundaries
+# Enterprise: Team-based AWS foundation
+# ======================================
+# Complete multi-account architecture with account-per-team model:
+# - Teams OU with dedicated accounts per team
+# - Security and Platform accounts for centralized services
+# - Delegated administration (SSO, IPAM from platform account)
+# - IPAM pools shared via RAM to Teams OU
+# - Each team gets their own VPC with dual-stack networking
 #
 # This example creates:
 # - 1 AWS Organization
-# - 6 Organizational Units (hierarchical)
-# - 5 Member Accounts
-# - 2 Delegated Administrators (SSO, IPAM)
-# - 3 Identity Store Groups
-# - 3 Permission Sets with account assignments
-# - IPAM with multi-region hierarchical IPv4 and IPv6 pools
-# - VPCs in prod, staging, dev, and shared-services accounts
+# - 6 Organizational Units (Security, Platform, Teams/Alpha, Teams/Beta, Teams/Data)
+# - 5 Member Accounts (security, platform, alpha, beta, data)
+# - 2 Delegated Administrators (SSO, IPAM to platform)
+# - 5 Identity Store Groups (per-team + admins + security)
+# - Team-specific permission sets
+# - IPAM with hierarchical pools shared to Teams OU
+# - VPCs in each team account
 #
-# After apply, each account has a ProviderConfig ready:
-#   providerConfigRef:
-#     name: acme-prod  # or acme-dev, acme-shared-services, etc.
+# Why account-per-team?
+# - Blast radius isolation between teams
+# - Clear cost attribution
+# - Teams own their infrastructure, platform provides guardrails
 
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: Foundation
@@ -30,13 +30,14 @@ metadata:
 spec:
   managementPolicies: ["*"]
 
-  aws:
-    providerConfig: aws-management-account
-    region: us-east-1
+  providerConfigRef:
+    name: aws-management-account
+    kind: ProviderConfig
+
+  region: us-east-1
 
   tags:
     organization: acme
-    environment: production
     managed-by: crossplane
 
   # ---------------------------------------------------------------------------
@@ -44,106 +45,104 @@ spec:
   # ---------------------------------------------------------------------------
   organization:
     awsServiceAccessPrincipals:
+      - iam.amazonaws.com
       - sso.amazonaws.com
+      - account.amazonaws.com
       - ipam.amazonaws.com
       - ram.amazonaws.com
 
   # ---------------------------------------------------------------------------
-  # Organizational Unit Hierarchy
+  # Organizational Unit Hierarchy (Team-based)
   # ---------------------------------------------------------------------------
-  # AWS best-practice structure:
   # Root
-  # ├── Security          (security tooling, log archive, audit)
-  # ├── Infrastructure    (shared services, networking, CI/CD)
-  # ├── Workloads
-  # │   ├── Prod          (production workloads)
-  # │   └── Non-Prod      (staging, dev, QA)
-  # └── Sandbox           (experimentation, learning)
+  # ├── Security          (security tooling, audit)
+  # ├── Platform          (shared services, IPAM admin, CI/CD)
+  # └── Teams
+  #     ├── Alpha         (product team Alpha)
+  #     ├── Beta          (product team Beta)
+  #     └── Data          (data engineering team)
 
   organizationalUnits:
     - path: Security
-    - path: Infrastructure
-    - path: Workloads
-    - path: Workloads/Prod
-    - path: Workloads/Non-Prod
-    - path: Sandbox
+    - path: Platform
+    - path: Teams
+    - path: Teams/Alpha
+    - path: Teams/Beta
+    - path: Teams/Data
 
   # ---------------------------------------------------------------------------
-  # Accounts
+  # Accounts (Team-based)
   # ---------------------------------------------------------------------------
-  # Each account gets:
-  # - cross-account-access role (AdministratorAccess by default)
-  # - Permission boundary (prevents access key creation, etc.)
-  # - ProviderConfig for downstream resource management
-
   accounts:
-    # Security OU
-    - name: acme-security-tooling
-      email: security-tooling@acme.example.com
+    # Security account - GuardDuty, Security Hub, CloudTrail
+    - name: acme-security
+      email: aws-security@acme.example.com
       ou: Security
       tags:
         team: security
 
-    # Infrastructure OU
-    - name: acme-shared-services
-      email: shared-services@acme.example.com
-      ou: Infrastructure
+    # Platform - Identity Center admin, IPAM admin, CI/CD, shared tooling
+    - name: acme-platform
+      email: aws-platform@acme.example.com
+      ou: Platform
       tags:
         team: platform
 
-    # Production workloads
-    - name: acme-prod
-      email: prod@acme.example.com
-      ou: Workloads/Prod
+    # Team accounts - each team owns their account
+    - name: acme-alpha
+      email: aws-alpha@acme.example.com
+      ou: Teams/Alpha
       tags:
-        environment: production
+        team: alpha
 
-    # Non-production workloads
-    - name: acme-staging
-      email: staging@acme.example.com
-      ou: Workloads/Non-Prod
+    - name: acme-beta
+      email: aws-beta@acme.example.com
+      ou: Teams/Beta
       tags:
-        environment: staging
+        team: beta
 
-    - name: acme-dev
-      email: dev@acme.example.com
-      ou: Workloads/Non-Prod
+    - name: acme-data
+      email: aws-data@acme.example.com
+      ou: Teams/Data
       tags:
-        environment: development
+        team: data
 
   # ---------------------------------------------------------------------------
   # Delegated Administrators
   # ---------------------------------------------------------------------------
-  # Delegate AWS service administration to shared-services account
-
+  # Delegate SSO and IPAM administration to platform account
   delegatedAdministrators:
     - servicePrincipal: sso.amazonaws.com
-      account: acme-shared-services
+      account: acme-platform
     - servicePrincipal: ipam.amazonaws.com
-      account: acme-shared-services
+      account: acme-platform
 
   # ---------------------------------------------------------------------------
   # Identity Center
   # ---------------------------------------------------------------------------
-  # Centralized access management with SSO
-
   identityCenter:
     region: us-east-1
-    identityStoreId: d-1234567890        # From AWS SSO console
+    identityStoreId: d-1234567890
     instanceArn: arn:aws:sso:::instance/ssoins-abcdef0123456789
 
-    # Groups for access control
+    # Groups - one per team plus admins and security
     groups:
-      - name: Administrators
-        description: Full administrative access to all accounts
+      - name: PlatformAdmins
+        description: Full access to all accounts
 
-      - name: Developers
-        description: Development access to non-production accounts
+      - name: SecurityTeam
+        description: Security tooling access
 
-      - name: ReadOnly
-        description: Read-only access for auditing and compliance
+      - name: TeamAlpha
+        description: Alpha team members
 
-    # Permission sets define what access each group gets
+      - name: TeamBeta
+        description: Beta team members
+
+      - name: DataEngineers
+        description: Data team members
+
+    # Permission sets - team-specific access
     permissionSets:
       - name: AdministratorAccess
         description: Full administrator access
@@ -151,73 +150,70 @@ spec:
         managedPolicies:
           - arn:aws:iam::aws:policy/AdministratorAccess
         assignToGroups:
-          - Administrators
+          - PlatformAdmins
         assignToAccounts:
-          - acme-shared-services
-          - acme-security-tooling
-          - acme-prod
-          - acme-staging
-          - acme-dev
+          - acme-platform
+          - acme-security
+          - acme-alpha
+          - acme-beta
+          - acme-data
 
-      - name: DeveloperAccess
-        description: Developer access for non-prod environments
+      - name: SecurityAudit
+        description: Security audit access
+        sessionDuration: PT4H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/SecurityAudit
+        assignToGroups:
+          - SecurityTeam
+        assignToAccounts:
+          - acme-security
+          - acme-alpha
+          - acme-beta
+          - acme-data
+
+      # Team-specific access - each team only gets access to their account
+      - name: AlphaAccess
+        description: Team Alpha access
         sessionDuration: PT8H
         managedPolicies:
           - arn:aws:iam::aws:policy/PowerUserAccess
         assignToGroups:
-          - Developers
+          - TeamAlpha
         assignToAccounts:
-          - acme-staging
-          - acme-dev
+          - acme-alpha
 
-      - name: ViewOnlyAccess
-        description: Read-only access for compliance review
-        sessionDuration: PT1H
+      - name: BetaAccess
+        description: Team Beta access
+        sessionDuration: PT8H
         managedPolicies:
-          - arn:aws:iam::aws:policy/ViewOnlyAccess
+          - arn:aws:iam::aws:policy/PowerUserAccess
         assignToGroups:
-          - ReadOnly
+          - TeamBeta
         assignToAccounts:
-          - acme-shared-services
-          - acme-security-tooling
-          - acme-prod
-          - acme-staging
-          - acme-dev
+          - acme-beta
+
+      - name: DataAccess
+        description: Data team access
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups:
+          - DataEngineers
+        assignToAccounts:
+          - acme-data
 
   # ---------------------------------------------------------------------------
-  # IPAM - Multi-Region Hierarchical Dual-Stack Configuration
+  # IPAM - Pools shared with Teams OU
   # ---------------------------------------------------------------------------
-  # IP Address Manager with global → regional → environment pool hierarchy.
-  # Pools are shared via RAM to appropriate OUs/accounts.
-  #
-  # IPv4 Pool Hierarchy:
-  #   ipv4-global (10.0.0.0/8)
-  #   ├── ipv4-us-east-1 (10.0.0.0/10)
-  #   │   ├── ipv4-us-east-1-prod (10.0.0.0/12) → Workloads/Prod OU
-  #   │   ├── ipv4-us-east-1-nonprod (10.16.0.0/12) → Workloads/Non-Prod OU
-  #   │   └── ipv4-us-east-1-shared (10.32.0.0/16) → shared-services account
-  #   └── ipv4-us-west-2 (10.64.0.0/10)
-  #       └── ipv4-us-west-2-prod (10.64.0.0/12) → Workloads/Prod OU (DR)
-  #
-  # IPv6 ULA Pool Hierarchy:
-  #   ipv6-ula-global (/40)
-  #   ├── ipv6-ula-us-east-1 (/44) → Workloads OU
-  #   └── ipv6-ula-us-west-2 (/44) → Workloads OU
-  #
-  # IPv6 GUA Pools (Amazon-provided, no hierarchy):
-  #   ipv6-gua-us-east-1 (/52) → Workloads OU
-  #   ipv6-gua-us-west-2 (/52) → Workloads OU
-
   ipam:
-    delegatedAdminAccount: acme-shared-services
+    delegatedAdminAccount: acme-platform
     region: us-east-1
     operatingRegions:
       - us-east-1
-      - us-west-2
 
     pools:
       # ==========================================================================
-      # IPv4 Pools - Global → Regional → Environment hierarchy
+      # IPv4 Pools - Global → Regional → shared with Teams OU
       # ==========================================================================
       ipv4:
         # Global pool - top of hierarchy
@@ -225,103 +221,38 @@ spec:
           cidr: 10.0.0.0/8
           allocations:
             netmaskLength:
-              default: 10  # Carve /10 per region
+              default: 12
           description: Global IPv4 pool
 
-        # --- us-east-1 regional pools ---
+        # Regional pool - shared with all teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
           locale: us-east-1
-          cidr: 10.0.0.0/10      # 10.0.0.0 - 10.63.255.255
-          allocations:
-            netmaskLength:
-              default: 12
-          description: Regional IPv4 pool for us-east-1
-
-        # Production pool - shared with Workloads/Prod OU
-        - name: ipv4-us-east-1-prod
-          sourcePoolRef: ipv4-us-east-1
-          locale: us-east-1
-          cidr: 10.0.0.0/12      # 10.0.0.0 - 10.15.255.255
+          cidr: 10.0.0.0/12
           allocations:
             netmaskLength:
               default: 16
-              min: 16
-              max: 24
           ramShareTargets:
-            - ou: Workloads/Prod
-          description: Production IPv4 pool for us-east-1
-          labels:
-            environment: production
-            region: us-east-1
+            - ou: Teams
+          description: Regional IPv4 pool shared with Teams OU
 
-        # Non-prod pool - shared with Workloads/Non-Prod OU
-        - name: ipv4-us-east-1-nonprod
-          sourcePoolRef: ipv4-us-east-1
+        # Platform pool
+        - name: ipv4-us-east-1-platform
+          sourcePoolRef: ipv4-global
           locale: us-east-1
-          cidr: 10.16.0.0/12     # 10.16.0.0 - 10.31.255.255
-          allocations:
-            netmaskLength:
-              default: 16
-              min: 16
-              max: 24
-          ramShareTargets:
-            - ou: Workloads/Non-Prod
-          description: Non-production IPv4 pool for us-east-1
-          labels:
-            environment: non-production
-            region: us-east-1
-
-        # Shared services pool
-        - name: ipv4-us-east-1-shared
-          sourcePoolRef: ipv4-us-east-1
-          locale: us-east-1
-          cidr: 10.32.0.0/16     # 10.32.0.0 - 10.32.255.255
+          cidr: 10.16.0.0/16
           allocations:
             netmaskLength:
               default: 20
-              min: 20
-              max: 24
           ramShareTargets:
-            - account: acme-shared-services
-          description: Shared services IPv4 pool
-          labels:
-            environment: shared
-            region: us-east-1
-
-        # --- us-west-2 regional pools (DR/multi-region) ---
-        - name: ipv4-us-west-2
-          sourcePoolRef: ipv4-global
-          locale: us-west-2
-          cidr: 10.64.0.0/10     # 10.64.0.0 - 10.127.255.255
-          allocations:
-            netmaskLength:
-              default: 12
-          description: Regional IPv4 pool for us-west-2
-
-        - name: ipv4-us-west-2-prod
-          sourcePoolRef: ipv4-us-west-2
-          locale: us-west-2
-          cidr: 10.64.0.0/12
-          allocations:
-            netmaskLength:
-              default: 16
-              min: 16
-              max: 24
-          ramShareTargets:
-            - ou: Workloads/Prod
-          description: Production IPv4 pool for us-west-2 (DR)
-          labels:
-            environment: production
-            region: us-west-2
+            - account: acme-platform
+          description: Platform IPv4 pool
 
       # ==========================================================================
-      # IPv6 Pools - ULA (private) and GUA (public)
+      # IPv6 Pools - shared with Teams OU
       # ==========================================================================
       ipv6:
-        # ULA pools - Private IPv6 (fd00::/8), not internet-routable
         ula:
-          # Global ULA pool
           - name: ipv6-ula-global
             netmaskLength: 40
             allocations:
@@ -329,39 +260,25 @@ spec:
                 default: 44
             description: Global ULA IPv6 pool
 
-          # Regional ULA - us-east-1
           - name: ipv6-ula-us-east-1
             sourcePoolRef: ipv6-ula-global
             locale: us-east-1
             netmaskLength: 44
             allocations:
               netmaskLength:
-                default: 48
-                min: 48
-                max: 56
+                default: 56
             ramShareTargets:
-              - ou: Workloads
-            description: Regional ULA IPv6 for us-east-1
-            labels:
-              region: us-east-1
+              - ou: Teams
+            description: Regional ULA IPv6 shared with Teams OU
 
-          # Regional ULA - us-west-2
-          - name: ipv6-ula-us-west-2
+          - name: ipv6-ula-us-east-1-platform
             sourcePoolRef: ipv6-ula-global
-            locale: us-west-2
-            netmaskLength: 44
-            allocations:
-              netmaskLength:
-                default: 48
-                min: 48
-                max: 56
+            locale: us-east-1
+            netmaskLength: 56
             ramShareTargets:
-              - ou: Workloads
-            description: Regional ULA IPv6 for us-west-2
-            labels:
-              region: us-west-2
+              - account: acme-platform
+            description: Platform ULA IPv6 pool
 
-        # GUA pools - Amazon-provided public IPv6
         gua:
           - name: ipv6-gua-us-east-1
             locale: us-east-1
@@ -371,36 +288,13 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-                min: 52
-                max: 60
             ramShareTargets:
-              - ou: Workloads
-            description: Public IPv6 pool for us-east-1 (Amazon GUA)
-            labels:
-              region: us-east-1
-              eks-ready: "true"
-
-          - name: ipv6-gua-us-west-2
-            locale: us-west-2
-            netmaskLength: 52
-            publicIpSource: amazon
-            awsService: ec2
-            allocations:
-              netmaskLength:
-                default: 56
-                min: 52
-                max: 60
-            ramShareTargets:
-              - ou: Workloads
-            description: Public IPv6 pool for us-west-2 (Amazon GUA)
-            labels:
-              region: us-west-2
-              eks-ready: "true"
+              - ou: Teams
+            description: Public IPv6 pool shared with Teams OU
 
   # ---------------------------------------------------------------------------
   # Network Defaults
   # ---------------------------------------------------------------------------
-  # These settings are inherited by all networks unless overridden.
   networkDefaults:
     subnetLayout:
       availabilityZones: [a, b, c]
@@ -415,65 +309,61 @@ spec:
       strategy: SingleAz
 
   # ---------------------------------------------------------------------------
-  # Networks - VPCs in each account
+  # Networks - each team gets their own VPC
   # ---------------------------------------------------------------------------
-  # Each network targets a specific account and allocates from IPAM pools.
-  # - `poolRef` references pools by name (Foundation resolves to pool ID)
-  # - `account` targets that account's ProviderConfig
-  # - Omitting `account` targets management account
   networks:
-    # Production VPC - HA NAT, all 3 AZs
-    - name: production
-      account: acme-prod
+    # Team Alpha VPC
+    - name: alpha
+      account: acme-alpha
       region: us-east-1
       ipam:
         ipv4:
-          poolRef: ipv4-us-east-1-prod
+          poolRef: ipv4-us-east-1
           netmaskLength: 16
-      nat:
-        strategy: HighlyAvailable    # Override: HA for production
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
       tags:
-        environment: production
-        tier: workload
+        team: alpha
 
-    # Staging VPC - 2 AZs for cost savings
-    - name: staging
-      account: acme-staging
+    # Team Beta VPC
+    - name: beta
+      account: acme-beta
       region: us-east-1
       ipam:
         ipv4:
-          poolRef: ipv4-us-east-1-nonprod
+          poolRef: ipv4-us-east-1
           netmaskLength: 16
-      subnetLayout:
-        availabilityZones: [a, b]    # Override: only 2 AZs
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
       tags:
-        environment: staging
-        tier: workload
+        team: beta
 
-    # Dev VPC - minimal, single AZ, no NAT
-    - name: dev
-      account: acme-dev
+    # Data team VPC
+    - name: data
+      account: acme-data
       region: us-east-1
       ipam:
         ipv4:
-          poolRef: ipv4-us-east-1-nonprod
-          netmaskLength: 18           # Smaller /18 for dev
-      subnetLayout:
-        availabilityZones: [a]        # Override: single AZ
-        private:
-          enabled: false              # Override: no private subnets
-      nat:
-        enabled: false                # Override: no NAT
+          poolRef: ipv4-us-east-1
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
       tags:
-        environment: development
-        tier: workload
+        team: data
 
-    # Shared services VPC - management account, manual CIDR
-    - name: shared-services
-      # No account = uses management account (spec.aws.providerConfig)
+    # Platform VPC - shared tooling, CI/CD
+    - name: platform
+      account: acme-platform
       region: us-east-1
-      vpc:
-        cidr: "10.32.0.0/16"          # Manual CIDR (not from IPAM)
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-platform
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1-platform
+          netmaskLength: 56
       tags:
-        environment: shared
-        tier: infrastructure
+        team: platform

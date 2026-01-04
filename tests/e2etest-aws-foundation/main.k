@@ -138,14 +138,15 @@ _foundation_manifest = {
     spec: {
         managementPolicies: _observeOnly
 
-        aws: {
-            providerConfig: "default"
-            region: _region
+        providerConfigRef: {
+            name: "default"
+            kind: "ProviderConfig"
         }
-
-        k8s: {
-            providerConfig: _foundation_name
+        kubernetesProviderConfigRef: {
+            name: _foundation_name
+            kind: "ProviderConfig"
         }
+        region: _region
 
         memberAccountsProviderConfigs: {
             managementPolicies: ["*"]
@@ -327,7 +328,7 @@ _foundation_manifest = {
             {
                 name: "e2etest-network"
                 region: _region
-                # No account specified = uses management account (spec.aws.providerConfig)
+                # No account specified = uses management account (spec.providerConfigRef)
                 managementPolicies: _observeOnly
 
                 # Reference regional pools by name - Foundation resolves to pool IDs

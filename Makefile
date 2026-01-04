@@ -13,6 +13,7 @@ E2E_TESTS := $(wildcard tests/e2etest-*)
 EXAMPLES := \
     examples/foundations/minimal.yaml:: \
     examples/foundations/individual.yaml:: \
+    examples/foundations/individual.yaml::examples/test/mocks/observed-resources/individual/steps/1 \
     examples/foundations/enterprise.yaml:: \
     examples/foundations/enterprise.yaml::examples/test/mocks/observed-resources/enterprise/steps/1 \
     examples/foundations/import-existing.yaml:: \

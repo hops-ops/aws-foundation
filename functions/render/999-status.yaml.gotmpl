@@ -1,0 +1,116 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Foundation Status
+# =================
+# Outputs status from $state.status (computed in 010-state-status.yaml.gotmpl).
+
+{{- $xr := getCompositeResource . }}
+{{- $s := $state.status }}
+---
+apiVersion: {{ $xr.apiVersion }}
+kind: {{ $xr.kind }}
+status:
+  ready: {{ $s.ready }}
+
+  {{- /* Organization */}}
+  {{- if gt (len $s.organization) 0 }}
+  organization:
+    {{- toYaml $s.organization | nindent 4 }}
+  {{- end }}
+
+  {{- /* Organizational Units */}}
+  {{- if gt (len $s.organizationalUnits) 0 }}
+  organizationalUnits:
+    {{- range $path, $id := $s.organizationalUnits }}
+    {{ $path }}: {{ $id }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* Accounts */}}
+  {{- if gt (len $s.accounts) 0 }}
+  accounts:
+    {{- range $account := $s.accounts }}
+    - name: {{ $account.name }}
+      id: {{ $account.id }}
+      ready: {{ $account.ready }}
+      {{- if $account.providerConfigName }}
+      providerConfigName: {{ $account.providerConfigName }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* Identity Center */}}
+  {{- if gt (len $s.identityCenter) 0 }}
+  identityCenter:
+    ready: {{ $s.identityCenter.ready }}
+    instanceArn: {{ $s.identityCenter.instanceArn }}
+    identityStoreId: {{ $s.identityCenter.identityStoreId }}
+    {{- if gt (len $s.identityCenter.groups) 0 }}
+    groups:
+      {{- range $group := $s.identityCenter.groups }}
+      - name: {{ $group.name }}
+        id: {{ $group.id }}
+      {{- end }}
+    {{- end }}
+    {{- if gt (len $s.identityCenter.permissionSets) 0 }}
+    permissionSets:
+      {{- range $ps := $s.identityCenter.permissionSets }}
+      - name: {{ $ps.name }}
+        arn: {{ $ps.arn }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* IPAM */}}
+  {{- if gt (len $s.ipam) 0 }}
+  ipam:
+    ready: {{ $s.ipam.ready }}
+    id: {{ $s.ipam.id }}
+    arn: {{ $s.ipam.arn }}
+    privateDefaultScopeId: {{ $s.ipam.privateDefaultScopeId }}
+    publicDefaultScopeId: {{ $s.ipam.publicDefaultScopeId }}
+    region: {{ $s.ipam.region }}
+    {{- if gt (len $s.ipam.pools) 0 }}
+    pools:
+      {{- range $pool := $s.ipam.pools }}
+      - name: {{ $pool.name }}
+        type: {{ $pool.type }}
+        id: {{ $pool.id }}
+        arn: {{ $pool.arn }}
+        cidr: {{ $pool.cidr }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* Networks */}}
+  {{- if gt (len $s.networks) 0 }}
+  networks:
+    {{- range $network := $s.networks }}
+    - name: {{ $network.name }}
+      account: {{ $network.account }}
+      region: {{ $network.region }}
+      ready: {{ $network.ready }}
+      vpcId: {{ $network.vpcId }}
+      {{- if or ($network.cidr.ipv4) ($network.cidr.ipv6Ula) }}
+      cidr:
+        {{- if $network.cidr.ipv4 }}
+        ipv4: {{ $network.cidr.ipv4 }}
+        {{- end }}
+        {{- if $network.cidr.ipv6Ula }}
+        ipv6Ula: {{ $network.cidr.ipv6Ula }}
+        {{- end }}
+      {{- end }}
+      {{- if gt (len $network.subnets) 0 }}
+      subnets:
+        {{- toYaml $network.subnets | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* Spec debugging */}}
+  spec:
+    raw:
+      {{- toYaml $s.spec.raw | nindent 6 }}
+    effective:
+      {{- toYaml $s.spec.effective | nindent 6 }}

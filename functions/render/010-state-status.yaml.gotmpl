@@ -1,0 +1,174 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Computed State: Status
+# ======================
+# Computes status values for the Foundation XRD.
+# Uses $state.observed and $state.spec.effective to build status output.
+
+{{- $eff := $state.spec.effective }}
+{{- $obs := $state.observed }}
+
+# =============================================================================
+# Overall readiness
+# =============================================================================
+{{- $overallReady := false }}
+{{- if $eff.organization.enabled }}
+  {{- $overallReady = and $obs.organization.ready $obs.organization.allAccountsReady }}
+{{- else if $eff.ipam.enabled }}
+  {{- $overallReady = $obs.ipam.ready }}
+{{- else }}
+  {{- $overallReady = true }}
+{{- end }}
+
+# =============================================================================
+# Organization status
+# =============================================================================
+{{- $organizationStatus := dict }}
+{{- if $eff.organization.enabled }}
+  {{- $organizationStatus = dict
+    "ready" $obs.organization.ready
+    "organizationId" $obs.organization.id
+    "managementAccountId" $obs.organization.managementAccountId
+    "rootId" $obs.organization.rootId
+  }}
+{{- end }}
+
+# =============================================================================
+# Accounts status
+# =============================================================================
+{{- $accountsStatus := list }}
+{{- range $account := $eff.accounts }}
+  {{- $accountName := $account.name }}
+  {{- $accountId := get $obs.organization.accountNameToId $accountName | default "Pending" }}
+  {{- $accountReady := get $obs.organization.accountNameReady $accountName | default false }}
+  {{- $accountStatus := dict
+    "name" $accountName
+    "id" $accountId
+    "ready" $accountReady
+  }}
+  {{- if and $accountReady (ne $accountId "Pending") }}
+    {{- $accountStatus = set $accountStatus "providerConfigName" $accountName }}
+  {{- end }}
+  {{- $accountsStatus = append $accountsStatus $accountStatus }}
+{{- end }}
+
+# =============================================================================
+# Identity Center status
+# =============================================================================
+{{- $identityCenterStatus := dict }}
+{{- if $eff.identityCenter.enabled }}
+  # Groups
+  {{- $groupsStatus := list }}
+  {{- range $group := $eff.identityCenter.groups }}
+    {{- $groupName := $group.name }}
+    {{- $groupId := get $obs.identityCenter.groupNameToId $groupName | default "Pending" }}
+    {{- $groupsStatus = append $groupsStatus (dict "name" $groupName "id" $groupId) }}
+  {{- end }}
+
+  # Permission sets
+  {{- $permissionSetsStatus := list }}
+  {{- range $ps := $eff.identityCenter.permissionSets }}
+    {{- $psName := $ps.name }}
+    {{- $psArn := get $obs.identityCenter.permissionSetNameToArn $psName | default "Pending" }}
+    {{- $permissionSetsStatus = append $permissionSetsStatus (dict "name" $psName "arn" $psArn) }}
+  {{- end }}
+
+  {{- $identityCenterStatus = dict
+    "ready" $obs.identityCenter.ready
+    "instanceArn" $obs.identityCenter.instanceArn
+    "identityStoreId" $obs.identityCenter.identityStoreId
+    "groups" $groupsStatus
+    "permissionSets" $permissionSetsStatus
+  }}
+{{- end }}
+
+# =============================================================================
+# IPAM status
+# =============================================================================
+{{- $ipamStatus := dict }}
+{{- if $eff.ipam.enabled }}
+  {{- $ipv4Pools := $eff.ipam.pools.ipv4 | default list }}
+  {{- $ipv6GuaPools := (($eff.ipam.pools.ipv6) | default dict).gua | default list }}
+  {{- $ipv6UlaPools := (($eff.ipam.pools.ipv6) | default dict).ula | default list }}
+
+  # Build pools status
+  {{- $poolsStatus := list }}
+  {{- range $pool := $ipv4Pools }}
+    {{- $poolName := $pool.name }}
+    {{- $poolsStatus = append $poolsStatus (dict
+      "name" $poolName
+      "type" "ipv4"
+      "id" (get $obs.ipam.poolIdByName $poolName | default "Pending")
+      "arn" (get $obs.ipam.poolArnByName $poolName | default "Pending")
+      "cidr" (get $obs.ipam.poolCidrByName $poolName | default "Pending")
+    ) }}
+  {{- end }}
+  {{- range $pool := $ipv6GuaPools }}
+    {{- $poolName := $pool.name }}
+    {{- $poolsStatus = append $poolsStatus (dict
+      "name" $poolName
+      "type" "ipv6-gua"
+      "id" (get $obs.ipam.poolIdByName $poolName | default "Pending")
+      "arn" (get $obs.ipam.poolArnByName $poolName | default "Pending")
+      "cidr" (get $obs.ipam.poolCidrByName $poolName | default "Pending")
+    ) }}
+  {{- end }}
+  {{- range $pool := $ipv6UlaPools }}
+    {{- $poolName := $pool.name }}
+    {{- $poolsStatus = append $poolsStatus (dict
+      "name" $poolName
+      "type" "ipv6-ula"
+      "id" (get $obs.ipam.poolIdByName $poolName | default "Pending")
+      "arn" (get $obs.ipam.poolArnByName $poolName | default "Pending")
+      "cidr" (get $obs.ipam.poolCidrByName $poolName | default "Pending")
+    ) }}
+  {{- end }}
+
+  {{- $ipamStatus = dict
+    "ready" $obs.ipam.ready
+    "id" $obs.ipam.id
+    "arn" $obs.ipam.arn
+    "privateDefaultScopeId" $obs.ipam.privateDefaultScopeId
+    "publicDefaultScopeId" $obs.ipam.publicDefaultScopeId
+    "region" $eff.ipam.region
+    "pools" $poolsStatus
+  }}
+{{- end }}
+
+# =============================================================================
+# Networks status
+# =============================================================================
+{{- $networksStatus := list }}
+{{- if $eff.networks.enabled }}
+  {{- range $network := $state.foundation.networks.processed }}
+    {{- $networkName := $network.name }}
+    {{- $observedNetwork := get $obs.networks.byName $networkName | default dict }}
+    {{- $networksStatus = append $networksStatus (dict
+      "name" $networkName
+      "account" (default "management" $network.account)
+      "region" $network.region
+      "ready" ($observedNetwork.ready | default false)
+      "vpcId" ($observedNetwork.vpcId | default "Pending")
+      "cidr" ($observedNetwork.cidr | default dict)
+      "subnets" ($observedNetwork.subnets | default dict)
+    ) }}
+  {{- end }}
+{{- end }}
+
+# =============================================================================
+# Set $state.status
+# =============================================================================
+{{- $state = set $state "status" (dict
+  "ready" $overallReady
+  "organization" $organizationStatus
+  "organizationalUnits" ($obs.organization.ouPathToId | default dict)
+  "accounts" $accountsStatus
+  "identityCenter" $identityCenterStatus
+  "ipam" $ipamStatus
+  "networks" $networksStatus
+  "spec" (dict
+    "raw" $state.spec.raw
+    "effective" $state.spec.effective
+  )
+) }}

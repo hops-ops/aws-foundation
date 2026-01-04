@@ -1,0 +1,32 @@
+# Network XRD - Ready with VPC and subnets (single AZ, dual-stack)
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Network
+metadata:
+  name: my-foundation-main
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: network-main
+    gotemplating.fn.crossplane.io/composition-resource-name: network-main
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  network:
+    vpcId: vpc-0main123456789abc
+    cidr:
+      ipv4: 10.0.0.0/16
+      ipv6Ula: fd00:1234:5678::/56
+    subnets:
+      public:
+        - name: public-a
+          id: subnet-0pubamain123456
+          az: us-east-1a
+          cidr: 10.0.0.0/24
+      private:
+        - name: private-a
+          id: subnet-0privamain12345
+          az: us-east-1a
+          cidr: 10.0.16.0/20
+  ready: true

@@ -1,0 +1,39 @@
+# IdentityCenter XRD - Ready with team-based groups and permission sets
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: IdentityCenter
+metadata:
+  name: acme
+  namespace: acme
+  annotations:
+    crossplane.io/composition-resource-name: identity-center
+    gotemplating.fn.crossplane.io/composition-resource-name: identity-center
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  identityStore:
+    groups:
+      - name: PlatformAdmins
+        id: 12345678-aaaa-1111-aaaa-111111111111
+      - name: SecurityTeam
+        id: 12345678-bbbb-2222-bbbb-222222222222
+      - name: TeamAlpha
+        id: 12345678-cccc-3333-cccc-333333333333
+      - name: TeamBeta
+        id: 12345678-dddd-4444-dddd-444444444444
+      - name: DataEngineers
+        id: 12345678-eeee-5555-eeee-555555555555
+  permissionSets:
+    - name: AdministratorAccess
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-admin12345678
+    - name: SecurityAudit
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-secau12345678
+    - name: AlphaAccess
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-alpha12345678
+    - name: BetaAccess
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-betaa12345678
+    - name: DataAccess
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-dataa12345678
+  ready: true

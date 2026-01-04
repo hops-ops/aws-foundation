@@ -1,0 +1,25 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Computed State: IPAM
+# =====================
+# IPAM computed state with render flag.
+
+{{- $eff := $state.spec.effective }}
+{{- $ipamSpec := $eff.ipam }}
+
+# IPAM is enabled if any pools are defined
+{{- $render := $ipamSpec.enabled }}
+
+# Set foundation.ipam slice
+{{- $ipam := dict
+  "render" $render
+  "region" $ipamSpec.region
+  "providerConfig" $ipamSpec.providerConfigRef
+  "operatingRegions" $ipamSpec.operatingRegions
+  "managementPolicies" $ipamSpec.managementPolicies
+  "externalName" $ipamSpec.externalName
+  "forProvider" $ipamSpec.forProvider
+  "pools" $ipamSpec.pools
+}}
+{{- $state = set $state "foundation" (merge $state.foundation (dict "ipam" $ipam)) }}

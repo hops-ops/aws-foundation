@@ -1,0 +1,46 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Observed State: IdentityCenter XRD
+# ===================================
+# Extracts status from the composed IdentityCenter XRD.
+
+{{- $raw := $.observed.resources | default dict }}
+{{- $entry := get $raw "identity-center" | default dict }}
+{{- $resource := $entry.resource | default dict }}
+{{- $status := $resource.status | default dict }}
+
+# Check readiness from conditions
+{{- $ready := false }}
+{{- range ($status.conditions | default list) }}
+  {{- if and (eq .type "Ready") (eq .status "True") }}
+    {{- $ready = true }}
+  {{- end }}
+{{- end }}
+
+# Extract group IDs: name -> id
+{{- $groupNameToId := dict }}
+{{- $identityStore := $status.identityStore | default dict }}
+{{- range ($identityStore.groups | default list) }}
+  {{- $groupNameToId = set $groupNameToId .name (.id | default "") }}
+{{- end }}
+
+# Extract user IDs: username -> id
+{{- $usernameToId := dict }}
+{{- range ($identityStore.users | default list) }}
+  {{- $usernameToId = set $usernameToId .username (.id | default "") }}
+{{- end }}
+
+# Extract permission set ARNs: name -> arn
+{{- $permissionSetNameToArn := dict }}
+{{- range ($status.permissionSets | default list) }}
+  {{- $permissionSetNameToArn = set $permissionSetNameToArn .name (.arn | default "") }}
+{{- end }}
+
+# Set observed.identityCenter slice
+{{- $state = set $state "observed" (merge $state.observed (dict "identityCenter" (dict
+  "ready" $ready
+  "groupNameToId" $groupNameToId
+  "usernameToId" $usernameToId
+  "permissionSetNameToArn" $permissionSetNameToArn
+))) }}

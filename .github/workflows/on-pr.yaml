@@ -30,11 +30,13 @@ jobs:
     with:
       examples: |
         [
+          { "example": "examples/foundations/minimal.yaml" },
           { "example": "examples/foundations/individual.yaml" },
+          { "example": "examples/foundations/individual.yaml", "observed_resources": "examples/test/mocks/observed-resources/individual/steps/1" },
           { "example": "examples/foundations/enterprise.yaml" },
           { "example": "examples/foundations/enterprise.yaml", "observed_resources": "examples/test/mocks/observed-resources/enterprise/steps/1" },
           { "example": "examples/foundations/import-existing.yaml" },
-          { "example": "examples/foundations/minimal.yaml" }
+          { "example": "examples/foundations/with-networks.yaml" }
         ]
       api_path: apis/foundations
       error_on_missing_schemas: true
