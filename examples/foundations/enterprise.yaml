@@ -271,6 +271,14 @@ spec:
               - ou: Teams
             description: Regional ULA IPv6 shared with Teams OU
 
+          - name: ipv6-ula-us-east-1-platform
+            sourcePoolRef: ipv6-ula-global
+            locale: us-east-1
+            netmaskLength: 56
+            ramShareTargets:
+              - account: acme-platform
+            description: Platform ULA IPv6 pool
+
         gua:
           - name: ipv6-gua-us-east-1
             locale: us-east-1
@@ -355,7 +363,7 @@ spec:
           poolRef: ipv4-us-east-1-platform
           netmaskLength: 16
         ipv6Ula:
-          poolRef: ipv6-ula-us-east-1
+          poolRef: ipv6-ula-us-east-1-platform
           netmaskLength: 56
       tags:
         team: platform

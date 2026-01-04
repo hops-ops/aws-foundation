@@ -45,6 +45,8 @@ spec:
       - iam.amazonaws.com
       - sso.amazonaws.com
       - account.amazonaws.com
+      - ipam.amazonaws.com
+      - ram.amazonaws.com
 
   # ---------------------------------------------------------------------------
   # Organizational Unit Hierarchy

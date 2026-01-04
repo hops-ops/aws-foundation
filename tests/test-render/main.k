@@ -406,6 +406,289 @@ _items = [
                 }
             ]
         }
+    },
+
+    # =========================================================================
+    # Merge Precedence: Network-specific subnetLayout overrides networkDefaults
+    # =========================================================================
+    # When networkDefaults.subnetLayout and network.subnetLayout both have values,
+    # network-specific values should win (merge gives precedence to last arg)
+
+    metav1alpha1.CompositionTest{
+        metadata.name = "test-network-subnetlayout-overrides-defaults"
+        spec = {
+            compositionPath = "apis/foundations/composition.yaml"
+            xrdPath = "apis/foundations/definition.yaml"
+            timeoutSeconds = 120
+            validate = True
+            xr = {
+                apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                kind = "Foundation"
+                metadata.name = "test-subnet"
+                spec = {
+                    managementPolicies = ["*"]
+                    region = "us-east-1"
+                    networkDefaults = {
+                        subnetLayout = {
+                            availabilityZones = ["a", "b"]
+                            public = {enabled = True, netmaskLength = 24}
+                            private = {enabled = True, netmaskLength = 20}
+                        }
+                    }
+                    ipam.pools.ipv4 = [{name = "test-pool", cidr = "10.0.0.0/8"}]
+                    networks = [{
+                        name = "main"
+                        region = "us-east-1"
+                        ipam.ipv4 = {poolRef = "test-pool", netmaskLength = 16}
+                        # Override: use 3 AZs and different netmask
+                        subnetLayout = {
+                            availabilityZones = ["a", "b", "c"]
+                            public = {netmaskLength = 28}
+                        }
+                    }]
+                }
+            }
+            observedResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "IPAM"
+                    metadata = {
+                        name = "test-subnet-ipam"
+                        annotations = {"crossplane.io/composition-resource-name" = "ipam"}
+                    }
+                    status = {
+                        conditions = [{type = "Ready", status = "True"}]
+                        pools.ipv4 = [{name = "test-pool", id = "ipam-pool-123"}]
+                    }
+                }
+            ]
+            assertResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "Network"
+                    metadata.name = "test-subnet-main"
+                    # Network-specific values should override defaults
+                    spec.subnetLayout = {
+                        availabilityZones = ["a", "b", "c"]
+                        public = {enabled = True, netmaskLength = 28}
+                        private = {enabled = True, netmaskLength = 20}
+                    }
+                }
+            ]
+        }
+    },
+
+    # =========================================================================
+    # Merge Precedence: Network-specific nat overrides networkDefaults
+    # =========================================================================
+
+    metav1alpha1.CompositionTest{
+        metadata.name = "test-network-nat-overrides-defaults"
+        spec = {
+            compositionPath = "apis/foundations/composition.yaml"
+            xrdPath = "apis/foundations/definition.yaml"
+            timeoutSeconds = 120
+            validate = True
+            xr = {
+                apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                kind = "Foundation"
+                metadata.name = "test-nat"
+                spec = {
+                    managementPolicies = ["*"]
+                    region = "us-east-1"
+                    networkDefaults = {
+                        nat = {
+                            enabled = True
+                            strategy = "SingleAz"
+                        }
+                    }
+                    ipam.pools.ipv4 = [{name = "test-pool", cidr = "10.0.0.0/8"}]
+                    networks = [{
+                        name = "ha-network"
+                        region = "us-east-1"
+                        ipam.ipv4 = {poolRef = "test-pool", netmaskLength = 16}
+                        # Override: use HighlyAvailable strategy
+                        nat = {strategy = "HighlyAvailable"}
+                    }]
+                }
+            }
+            observedResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "IPAM"
+                    metadata = {
+                        name = "test-nat-ipam"
+                        annotations = {"crossplane.io/composition-resource-name" = "ipam"}
+                    }
+                    status = {
+                        conditions = [{type = "Ready", status = "True"}]
+                        pools.ipv4 = [{name = "test-pool", id = "ipam-pool-456"}]
+                    }
+                }
+            ]
+            assertResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "Network"
+                    metadata.name = "test-nat-ha-network"
+                    # Network-specific strategy should override default
+                    spec.nat = {
+                        enabled = True
+                        strategy = "HighlyAvailable"
+                    }
+                }
+            ]
+        }
+    },
+
+    # =========================================================================
+    # Merge Precedence: Network-specific flowLogs overrides networkDefaults
+    # =========================================================================
+
+    metav1alpha1.CompositionTest{
+        metadata.name = "test-network-flowlogs-overrides-defaults"
+        spec = {
+            compositionPath = "apis/foundations/composition.yaml"
+            xrdPath = "apis/foundations/definition.yaml"
+            timeoutSeconds = 120
+            validate = True
+            xr = {
+                apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                kind = "Foundation"
+                metadata.name = "test-flow"
+                spec = {
+                    managementPolicies = ["*"]
+                    region = "us-east-1"
+                    networkDefaults = {
+                        flowLogs = {
+                            enabled = True
+                            destination = "cloudwatch"
+                            trafficType = "ALL"
+                        }
+                    }
+                    ipam.pools.ipv4 = [{name = "test-pool", cidr = "10.0.0.0/8"}]
+                    networks = [{
+                        name = "s3-logs"
+                        region = "us-east-1"
+                        ipam.ipv4 = {poolRef = "test-pool", netmaskLength = 16}
+                        # Override: use S3 destination and only REJECT traffic
+                        flowLogs = {
+                            destination = "s3"
+                            trafficType = "REJECT"
+                        }
+                    }]
+                }
+            }
+            observedResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "IPAM"
+                    metadata = {
+                        name = "test-flow-ipam"
+                        annotations = {"crossplane.io/composition-resource-name" = "ipam"}
+                    }
+                    status = {
+                        conditions = [{type = "Ready", status = "True"}]
+                        pools.ipv4 = [{name = "test-pool", id = "ipam-pool-789"}]
+                    }
+                }
+            ]
+            assertResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "Network"
+                    metadata.name = "test-flow-s3-logs"
+                    # Network-specific values should override defaults
+                    spec.flowLogs = {
+                        enabled = True
+                        destination = "s3"
+                        trafficType = "REJECT"
+                    }
+                }
+            ]
+        }
+    },
+
+    # =========================================================================
+    # Merge Precedence: Tags merge correctly (spec -> networkDefaults -> network)
+    # =========================================================================
+    # Tags should merge: spec.tags first, then networkDefaults.tags, then
+    # network-specific tags. Network-specific tags should win for conflicts.
+
+    metav1alpha1.CompositionTest{
+        metadata.name = "test-network-tags-merge-precedence"
+        spec = {
+            compositionPath = "apis/foundations/composition.yaml"
+            xrdPath = "apis/foundations/definition.yaml"
+            timeoutSeconds = 120
+            validate = True
+            xr = {
+                apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                kind = "Foundation"
+                metadata.name = "test-tags-merge"
+                spec = {
+                    managementPolicies = ["*"]
+                    region = "us-east-1"
+                    # Level 1: spec.tags (lowest priority)
+                    tags = {
+                        "environment" = "production"
+                        "team" = "platform"
+                        "cost-center" = "shared"
+                    }
+                    networkDefaults = {
+                        # Level 2: networkDefaults.tags (medium priority)
+                        tags = {
+                            "team" = "networking"
+                            "layer" = "network"
+                        }
+                    }
+                    ipam.pools.ipv4 = [{name = "test-pool", cidr = "10.0.0.0/8"}]
+                    networks = [{
+                        name = "app-vpc"
+                        region = "us-east-1"
+                        ipam.ipv4 = {poolRef = "test-pool", netmaskLength = 16}
+                        # Level 3: network-specific tags (highest priority)
+                        tags = {
+                            "team" = "application"
+                            "app" = "myapp"
+                        }
+                    }]
+                }
+            }
+            observedResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "IPAM"
+                    metadata = {
+                        name = "test-tags-merge-ipam"
+                        annotations = {"crossplane.io/composition-resource-name" = "ipam"}
+                    }
+                    status = {
+                        conditions = [{type = "Ready", status = "True"}]
+                        pools.ipv4 = [{name = "test-pool", id = "ipam-pool-tags"}]
+                    }
+                }
+            ]
+            assertResources = [
+                {
+                    apiVersion = "aws.hops.ops.com.ai/v1alpha1"
+                    kind = "Network"
+                    metadata.name = "test-tags-merge-app-vpc"
+                    spec.tags = {
+                        # From spec.tags (not overridden)
+                        "environment" = "production"
+                        "cost-center" = "shared"
+                        # From networkDefaults.tags (not overridden by network)
+                        "layer" = "network"
+                        # From network.tags (highest priority wins)
+                        "team" = "application"
+                        "app" = "myapp"
+                        # Default hops tag
+                        "hops" = "true"
+                    }
+                }
+            ]
+        }
     }
 ]
 

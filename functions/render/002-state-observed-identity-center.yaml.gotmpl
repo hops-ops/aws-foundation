@@ -25,10 +25,10 @@
   {{- $groupNameToId = set $groupNameToId .name (.id | default "") }}
 {{- end }}
 
-# Extract user IDs: name -> id
-{{- $userNameToId := dict }}
+# Extract user IDs: username -> id
+{{- $usernameToId := dict }}
 {{- range ($identityStore.users | default list) }}
-  {{- $userNameToId = set $userNameToId .name (.id | default "") }}
+  {{- $usernameToId = set $usernameToId .username (.id | default "") }}
 {{- end }}
 
 # Extract permission set ARNs: name -> arn
@@ -41,6 +41,6 @@
 {{- $state = set $state "observed" (merge $state.observed (dict "identityCenter" (dict
   "ready" $ready
   "groupNameToId" $groupNameToId
-  "userNameToId" $userNameToId
+  "usernameToId" $usernameToId
   "permissionSetNameToArn" $permissionSetNameToArn
 ))) }}
