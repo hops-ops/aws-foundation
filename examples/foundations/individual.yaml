@@ -1,15 +1,17 @@
 # Individual: Simple foundation for single-account setups
 # ========================================================
 # Perfect for solo founders, small teams, or single-project accounts.
-# No Organization, no OUs - Identity Center + IPAM for SSO and easy VPC creation.
+# No Organization, no OUs - Identity Center + IPAM + Network for SSO, IP management, and VPC.
 #
 # What you get:
 # - Identity Center with groups and permission sets for SSO access
-# - IPAM with hierarchical IPv4 and IPv6 pools (global → regional) for dual-stack VPC allocation
+# - IPAM with hierarchical IPv4 and IPv6 pools (global → regional) for VPC allocation
+# - VPC network with public/private subnets and NAT gateway
 #
 # After apply:
 # - SSO groups and permission sets are ready in Identity Center
-# - Create dual-stack VPCs using Network Allocation XRDs with pool IDs from status
+# - VPC is created with IPAM-allocated CIDR
+# - Ready to deploy workloads to the VPC
 #
 # Note: Account assignments require manual creation outside this Foundation
 # since there's no Organization to resolve account references. Create them
@@ -164,3 +166,30 @@ spec:
                 min: 52
                 max: 60
             description: Public IPv6 pool (Amazon GUA) for internet-facing workloads
+
+  # ---------------------------------------------------------------------------
+  # Network - VPC with IPAM allocation
+  # ---------------------------------------------------------------------------
+  # For single-account setups, omit `account` to use spec.aws.providerConfig.
+  # The network allocates its CIDR from the regional IPAM pool.
+  networks:
+    - name: main
+      # No account = uses management account (spec.aws.providerConfig)
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1    # Reference pool by name
+          netmaskLength: 16
+      subnetLayout:
+        availabilityZones: [a, b]    # 2 AZs for cost savings
+        public:
+          enabled: true
+          netmaskLength: 24
+        private:
+          enabled: true
+          netmaskLength: 20
+      nat:
+        enabled: true
+        strategy: SingleAz           # Single NAT for cost savings
+      tags:
+        environment: development

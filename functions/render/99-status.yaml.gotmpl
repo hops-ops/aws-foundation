@@ -118,3 +118,34 @@ status:
       {{- end }}
     {{- end }}
   {{- end }}
+  {{- if $networksEnabled }}
+  networks:
+    {{- range $network := $processedNetworks }}
+      {{- $networkName := $network.name }}
+      {{- $networkAccount := $network.account }}
+      {{- $networkRegion := $network.region }}
+      {{- $observedNetwork := get $networkObservedStatus $networkName | default (dict) }}
+      {{- $networkReady := $observedNetwork.ready | default false }}
+      {{- $networkVpcId := $observedNetwork.vpcId | default "Pending" }}
+      {{- $networkCidr := $observedNetwork.cidr | default (dict) }}
+      {{- $networkSubnets := $observedNetwork.subnets | default (dict) }}
+    - name: {{ $networkName }}
+      account: {{ if $networkAccount }}{{ $networkAccount }}{{ else }}management{{ end }}
+      region: {{ $networkRegion }}
+      ready: {{ $networkReady }}
+      vpcId: {{ $networkVpcId }}
+      {{- if or ($networkCidr.ipv4) ($networkCidr.ipv6Ula) }}
+      cidr:
+        {{- if $networkCidr.ipv4 }}
+        ipv4: {{ $networkCidr.ipv4 }}
+        {{- end }}
+        {{- if $networkCidr.ipv6Ula }}
+        ipv6Ula: {{ $networkCidr.ipv6Ula }}
+        {{- end }}
+      {{- end }}
+      {{- if gt (len $networkSubnets) 0 }}
+      subnets:
+        {{- toYaml $networkSubnets | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}

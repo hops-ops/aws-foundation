@@ -105,3 +105,117 @@
 {{- range $user := $identityCenterUsers }}
   {{- $_ := set $usersByName $user.username $user }}
 {{- end }}
+
+# =============================================================================
+# Networks Configuration
+# =============================================================================
+# Networks create aws-network Network XRD instances in member accounts.
+# When account is specified, uses that account's ProviderConfig.
+# When omitted, uses the management account's ProviderConfig.
+
+{{- $networkDefaults := $spec.networkDefaults | default (dict) }}
+{{- $networkDefaultSubnetLayout := $networkDefaults.subnetLayout | default (dict) }}
+{{- $networkDefaultNat := $networkDefaults.nat | default (dict) }}
+{{- $networkDefaultFlowLogs := $networkDefaults.flowLogs | default (dict) }}
+{{- $networkDefaultTags := $networkDefaults.tags | default (dict) }}
+
+{{- $networks := $spec.networks | default (list) }}
+{{- $networksEnabled := gt (len $networks) 0 }}
+
+# Build processed networks list with resolved values
+{{- $processedNetworks := list }}
+{{- range $idx, $network := $networks }}
+  {{- $networkName := $network.name }}
+  {{- $networkAccount := $network.account | default "" }}
+  {{- $networkRegion := $network.region }}
+
+  # Determine provider config: use account name if specified, else management account
+  {{- $networkProviderConfig := "" }}
+  {{- if $networkAccount }}
+    {{- $networkProviderConfig = $networkAccount }}
+  {{- else }}
+    {{- $networkProviderConfig = $awsProviderConfig }}
+  {{- end }}
+
+  # Merge subnet layout: defaults -> network-specific
+  {{- $networkSubnetLayout := $network.subnetLayout | default (dict) }}
+  {{- $mergedSubnetLayout := merge $networkSubnetLayout $networkDefaultSubnetLayout }}
+
+  # Merge NAT: defaults -> network-specific
+  {{- $networkNat := $network.nat | default (dict) }}
+  {{- $mergedNat := merge $networkNat $networkDefaultNat }}
+
+  # Merge flow logs: defaults -> network-specific
+  {{- $networkFlowLogs := $network.flowLogs | default (dict) }}
+  {{- $mergedFlowLogs := merge $networkFlowLogs $networkDefaultFlowLogs }}
+
+  # Merge tags: spec.tags -> networkDefaults.tags -> network-specific
+  {{- $networkTags := $network.tags | default (dict) }}
+  {{- $mergedTags := merge $networkTags $networkDefaultTags $tags }}
+
+  # IPAM configuration - resolve poolRef to poolId
+  {{- $networkIpam := $network.ipam | default (dict) }}
+  {{- $networkIpamIpv4 := $networkIpam.ipv4 | default (dict) }}
+  {{- $networkIpamIpv6Ula := $networkIpam.ipv6Ula | default (dict) }}
+
+  # Resolve IPv4 poolRef -> poolId from IPAM status
+  {{- $ipv4PoolRef := $networkIpamIpv4.poolRef | default "" }}
+  {{- $ipv4PoolId := $networkIpamIpv4.poolId | default "" }}
+  {{- $ipv4NetmaskLength := $networkIpamIpv4.netmaskLength | default 16 }}
+  {{- $ipv4Enabled := or (ne $ipv4PoolRef "") (ne $ipv4PoolId "") }}
+
+  # Resolve IPv6 ULA poolRef -> poolId from IPAM status
+  {{- $ipv6UlaPoolRef := $networkIpamIpv6Ula.poolRef | default "" }}
+  {{- $ipv6UlaPoolId := $networkIpamIpv6Ula.poolId | default "" }}
+  {{- $ipv6UlaNetmaskLength := $networkIpamIpv6Ula.netmaskLength | default 56 }}
+  {{- $ipv6UlaEnabled := or (ne $ipv6UlaPoolRef "") (ne $ipv6UlaPoolId "") }}
+
+  # VPC configuration (for manual CIDR or import)
+  {{- $networkVpc := $network.vpc | default (dict) }}
+
+  # Gateway configurations (for import support)
+  {{- $networkInternetGateway := $network.internetGateway | default (dict) }}
+  {{- $networkEgressOnlyIGW := $network.egressOnlyInternetGateway | default (dict) }}
+
+  # Route tables configuration
+  {{- $networkRouteTables := $network.routeTables | default (dict) }}
+
+  # Transit Gateway configuration
+  {{- $networkTransitGateway := $network.transitGateway | default (dict) }}
+
+  # Management policies override
+  {{- $networkManagementPolicies := $network.managementPolicies | default $managementPolicies }}
+
+  # Build processed network entry
+  {{- $processedNetwork := dict
+    "name" $networkName
+    "account" $networkAccount
+    "region" $networkRegion
+    "providerConfig" $networkProviderConfig
+    "subnetLayout" $mergedSubnetLayout
+    "nat" $mergedNat
+    "flowLogs" $mergedFlowLogs
+    "tags" $mergedTags
+    "vpc" $networkVpc
+    "internetGateway" $networkInternetGateway
+    "egressOnlyInternetGateway" $networkEgressOnlyIGW
+    "routeTables" $networkRouteTables
+    "transitGateway" $networkTransitGateway
+    "managementPolicies" $networkManagementPolicies
+    "ipam" (dict
+      "ipv4" (dict
+        "enabled" $ipv4Enabled
+        "poolRef" $ipv4PoolRef
+        "poolId" $ipv4PoolId
+        "netmaskLength" $ipv4NetmaskLength
+      )
+      "ipv6Ula" (dict
+        "enabled" $ipv6UlaEnabled
+        "poolRef" $ipv6UlaPoolRef
+        "poolId" $ipv6UlaPoolId
+        "netmaskLength" $ipv6UlaNetmaskLength
+      )
+    )
+  }}
+  {{- $processedNetworks = append $processedNetworks $processedNetwork }}
+{{- end }}

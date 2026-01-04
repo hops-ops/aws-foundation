@@ -1,0 +1,164 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Networks - aws-network Network XRDs
+# ====================================
+# Creates Network XRD instances for each network in spec.networks[].
+# Networks can target member accounts (via ProviderConfig) or management account.
+# IPAM poolRef is resolved to poolId from IPAM XRD status.
+
+{{- if $networksEnabled }}
+{{- range $network := $processedNetworks }}
+  {{- $networkName := $network.name }}
+  {{- $networkAccount := $network.account }}
+  {{- $networkRegion := $network.region }}
+  {{- $networkProviderConfig := $network.providerConfig }}
+  {{- $networkManagementPolicies := $network.managementPolicies }}
+  {{- $networkTags := $network.tags }}
+  {{- $networkVpc := $network.vpc }}
+  {{- $networkSubnetLayout := $network.subnetLayout }}
+  {{- $networkNat := $network.nat }}
+  {{- $networkFlowLogs := $network.flowLogs }}
+  {{- $networkTransitGateway := $network.transitGateway }}
+  {{- $networkIpam := $network.ipam }}
+
+  # Resolve IPAM pool references to IDs
+  {{- $ipv4Config := $networkIpam.ipv4 }}
+  {{- $ipv4Enabled := $ipv4Config.enabled }}
+  {{- $ipv4PoolRef := $ipv4Config.poolRef }}
+  {{- $ipv4PoolId := $ipv4Config.poolId }}
+  {{- $ipv4NetmaskLength := $ipv4Config.netmaskLength }}
+
+  # If poolRef is set, resolve from IPAM status
+  {{- if and $ipv4Enabled (ne $ipv4PoolRef "") }}
+    {{- $resolvedPoolId := get $ipamPoolIdByName $ipv4PoolRef }}
+    {{- if and $resolvedPoolId (ne $resolvedPoolId "Pending") }}
+      {{- $ipv4PoolId = $resolvedPoolId }}
+    {{- end }}
+  {{- end }}
+
+  {{- $ipv6UlaConfig := $networkIpam.ipv6Ula }}
+  {{- $ipv6UlaEnabled := $ipv6UlaConfig.enabled }}
+  {{- $ipv6UlaPoolRef := $ipv6UlaConfig.poolRef }}
+  {{- $ipv6UlaPoolId := $ipv6UlaConfig.poolId }}
+  {{- $ipv6UlaNetmaskLength := $ipv6UlaConfig.netmaskLength }}
+
+  # If poolRef is set, resolve from IPAM status
+  {{- if and $ipv6UlaEnabled (ne $ipv6UlaPoolRef "") }}
+    {{- $resolvedPoolId := get $ipamPoolIdByName $ipv6UlaPoolRef }}
+    {{- if and $resolvedPoolId (ne $resolvedPoolId "Pending") }}
+      {{- $ipv6UlaPoolId = $resolvedPoolId }}
+    {{- end }}
+  {{- end }}
+
+  # Determine if we should render this network
+  # For IPAM-based networks, we need the pool ID to be resolved (not Pending)
+  {{- $shouldRender := true }}
+  {{- if $ipv4Enabled }}
+    {{- if or (eq $ipv4PoolId "") (eq $ipv4PoolId "Pending") }}
+      {{- $shouldRender = false }}
+    {{- end }}
+  {{- end }}
+  {{- if and $shouldRender $ipv6UlaEnabled }}
+    {{- if or (eq $ipv6UlaPoolId "") (eq $ipv6UlaPoolId "Pending") }}
+      {{- $shouldRender = false }}
+    {{- end }}
+  {{- end }}
+
+  # For account-based networks, check if account ProviderConfig is ready
+  {{- if and $shouldRender (ne $networkAccount "") }}
+    {{- $accountReady := get $accountNameReady $networkAccount | default false }}
+    {{- if not $accountReady }}
+      {{- $shouldRender = false }}
+    {{- end }}
+  {{- end }}
+
+  {{- if $shouldRender }}
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Network
+metadata:
+  name: {{ $name }}-{{ $networkName }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "network-%s" $networkName) }}
+spec:
+  managementPolicies: {{ toJson $networkManagementPolicies }}
+  providerConfigRef:
+    name: {{ $networkProviderConfig }}
+    kind: ProviderConfig
+  region: {{ $networkRegion }}
+  {{- if gt (len $networkTags) 0 }}
+  tags:
+    {{- toYaml $networkTags | nindent 4 }}
+  {{- end }}
+
+  {{- /* IPAM configuration */}}
+  {{- if or $ipv4Enabled $ipv6UlaEnabled }}
+  ipam:
+    {{- if $ipv4Enabled }}
+    ipv4:
+      enabled: true
+      poolId: {{ $ipv4PoolId }}
+      netmaskLength: {{ $ipv4NetmaskLength }}
+    {{- end }}
+    {{- if $ipv6UlaEnabled }}
+    ipv6Ula:
+      enabled: true
+      poolId: {{ $ipv6UlaPoolId }}
+      netmaskLength: {{ $ipv6UlaNetmaskLength }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* VPC configuration - pass through all fields */}}
+  {{- if gt (len $networkVpc) 0 }}
+  vpc:
+    {{- toYaml $networkVpc | nindent 4 }}
+  {{- end }}
+
+  {{- /* Subnet layout - pass through all fields */}}
+  {{- if gt (len $networkSubnetLayout) 0 }}
+  subnetLayout:
+    {{- toYaml $networkSubnetLayout | nindent 4 }}
+  {{- end }}
+
+  {{- /* NAT configuration - pass through all fields */}}
+  {{- if gt (len $networkNat) 0 }}
+  nat:
+    {{- toYaml $networkNat | nindent 4 }}
+  {{- end }}
+
+  {{- /* Internet Gateway - pass through from network spec */}}
+  {{- $networkInternetGateway := $network.internetGateway | default (dict) }}
+  {{- if gt (len $networkInternetGateway) 0 }}
+  internetGateway:
+    {{- toYaml $networkInternetGateway | nindent 4 }}
+  {{- end }}
+
+  {{- /* Egress-Only Internet Gateway - pass through from network spec */}}
+  {{- $networkEgressOnlyIGW := $network.egressOnlyInternetGateway | default (dict) }}
+  {{- if gt (len $networkEgressOnlyIGW) 0 }}
+  egressOnlyInternetGateway:
+    {{- toYaml $networkEgressOnlyIGW | nindent 4 }}
+  {{- end }}
+
+  {{- /* Route Tables - pass through from network spec */}}
+  {{- $networkRouteTables := $network.routeTables | default (dict) }}
+  {{- if gt (len $networkRouteTables) 0 }}
+  routeTables:
+    {{- toYaml $networkRouteTables | nindent 4 }}
+  {{- end }}
+
+  {{- /* Transit Gateway - pass through all fields */}}
+  {{- if gt (len $networkTransitGateway) 0 }}
+  transitGateway:
+    {{- toYaml $networkTransitGateway | nindent 4 }}
+  {{- end }}
+
+  {{- /* Flow logs - pass through all fields */}}
+  {{- if gt (len $networkFlowLogs) 0 }}
+  flowLogs:
+    {{- toYaml $networkFlowLogs | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

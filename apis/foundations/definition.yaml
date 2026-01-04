@@ -329,6 +329,207 @@ spec:
                                   type: string
                                   description: Pool name for reference.
 
+              # =============================================================================
+              # Network Defaults - inherited by all networks
+              # =============================================================================
+              networkDefaults:
+                type: object
+                description: |
+                  Default settings inherited by all networks. Deep merged with
+                  network-specific values (explicit values win).
+                properties:
+                  subnetLayout:
+                    type: object
+                    description: Default subnet layout for all networks.
+                    x-kubernetes-preserve-unknown-fields: true
+                    properties:
+                      availabilityZones:
+                        type: array
+                        description: Default AZ suffixes (e.g., ["a", "b", "c"]).
+                        items:
+                          type: string
+                        default: [a, b, c]
+                      public:
+                        type: object
+                        properties:
+                          enabled:
+                            type: boolean
+                            default: true
+                          netmaskLength:
+                            type: integer
+                            default: 24
+                      private:
+                        type: object
+                        properties:
+                          enabled:
+                            type: boolean
+                            default: true
+                          netmaskLength:
+                            type: integer
+                            default: 20
+                  nat:
+                    type: object
+                    description: Default NAT configuration for all networks.
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      strategy:
+                        type: string
+                        enum: [SingleAz, HighlyAvailable, None]
+                        default: SingleAz
+                  flowLogs:
+                    type: object
+                    description: Default flow logs configuration.
+                    x-kubernetes-preserve-unknown-fields: true
+                  tags:
+                    type: object
+                    description: Default tags merged with spec.tags for all networks.
+                    x-kubernetes-preserve-unknown-fields: true
+
+              # =============================================================================
+              # Networks - VPCs deployed to accounts
+              # =============================================================================
+              networks:
+                type: array
+                description: |
+                  VPC networks to create. Each network creates an aws-network Network instance.
+                  When account is specified, uses that account's ProviderConfig.
+                  When account is omitted, uses spec.aws.providerConfig (management account).
+                items:
+                  type: object
+                  required:
+                  - name
+                  - region
+                  properties:
+                    name:
+                      type: string
+                      description: |
+                        Network name. Becomes the Network metadata.name.
+                        Also used as resource name prefix.
+                    account:
+                      type: string
+                      description: |
+                        Account name from spec.accounts[].name.
+                        Resolves to ProviderConfig for that account.
+                        Omit to use management account (spec.aws.providerConfig).
+                    region:
+                      type: string
+                      description: AWS region for this network.
+
+                    # IPAM allocation
+                    ipam:
+                      type: object
+                      description: IPAM-based CIDR allocation.
+                      properties:
+                        ipv4:
+                          type: object
+                          properties:
+                            poolRef:
+                              type: string
+                              description: |
+                                Pool name from spec.ipam.pools.ipv4[].name.
+                                Resolved to pool ID from IPAM status.
+                            poolId:
+                              type: string
+                              description: |
+                                Direct pool ID (ipam-pool-xxx). Use when pool
+                                is external to this Foundation.
+                            netmaskLength:
+                              type: integer
+                              description: Netmask length for VPC CIDR.
+                              default: 16
+                        ipv6Ula:
+                          type: object
+                          properties:
+                            poolRef:
+                              type: string
+                              description: Pool name from spec.ipam.pools.ipv6.ula[].name.
+                            poolId:
+                              type: string
+                              description: Direct pool ID for external pools.
+                            netmaskLength:
+                              type: integer
+                              default: 56
+
+                    # Manual VPC CIDR (alternative to IPAM)
+                    vpc:
+                      type: object
+                      description: VPC configuration with manual CIDR.
+                      x-kubernetes-preserve-unknown-fields: true
+                      properties:
+                        cidr:
+                          type: string
+                          description: IPv4 CIDR block for the VPC.
+
+                    # Subnet layout (merged with networkDefaults.subnetLayout)
+                    subnetLayout:
+                      type: object
+                      description: Subnet layout overrides for this network.
+                      x-kubernetes-preserve-unknown-fields: true
+
+                    # NAT (merged with networkDefaults.nat)
+                    nat:
+                      type: object
+                      description: NAT Gateway configuration overrides.
+                      x-kubernetes-preserve-unknown-fields: true
+
+                    # Internet Gateway
+                    internetGateway:
+                      type: object
+                      description: Internet Gateway configuration (for import support).
+                      x-kubernetes-preserve-unknown-fields: true
+
+                    # Egress-Only Internet Gateway
+                    egressOnlyInternetGateway:
+                      type: object
+                      description: Egress-only IGW configuration for IPv6 (for import support).
+                      x-kubernetes-preserve-unknown-fields: true
+
+                    # Route Tables
+                    routeTables:
+                      type: object
+                      description: Route table configuration (for import support).
+                      x-kubernetes-preserve-unknown-fields: true
+
+                    # Transit Gateway attachment
+                    transitGateway:
+                      type: object
+                      description: Transit Gateway attachment configuration.
+                      x-kubernetes-preserve-unknown-fields: true
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        config:
+                          type: object
+                          properties:
+                            tgwId:
+                              type: string
+                              description: Existing Transit Gateway ID.
+
+                    # Flow logs
+                    flowLogs:
+                      type: object
+                      description: VPC Flow Logs configuration overrides.
+                      x-kubernetes-preserve-unknown-fields: true
+
+                    # Network-specific tags
+                    tags:
+                      type: object
+                      description: |
+                        Network-specific tags. Merged with spec.tags and
+                        networkDefaults.tags (later wins).
+                      x-kubernetes-preserve-unknown-fields: true
+
+                    # Management policies override
+                    managementPolicies:
+                      type: array
+                      description: Override management policies for this network.
+                      items:
+                        type: string
+                        enum: ["*", Create, Observe, Update, Delete, LateInitialize]
+
           status:
             type: object
             description: Observed state for Foundation.
@@ -356,3 +557,30 @@ spec:
               ipam:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              networks:
+                type: array
+                description: Network status with VPC IDs and subnet info.
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    account:
+                      type: string
+                      description: Account name (or "management" if none specified).
+                    region:
+                      type: string
+                    ready:
+                      type: boolean
+                    vpcId:
+                      type: string
+                    cidr:
+                      type: object
+                      properties:
+                        ipv4:
+                          type: string
+                        ipv6Ula:
+                          type: string
+                    subnets:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true

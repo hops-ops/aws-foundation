@@ -1,18 +1,20 @@
-# Import Existing: Adopt an existing AWS Organization
-# ====================================================
-# Use this when you already have an AWS Organization and want
-# Crossplane to manage it. The organization is adopted (not created)
+# Import Existing: Adopt an existing AWS Organization and VPCs
+# =============================================================
+# Use this when you already have an AWS Organization and VPCs and want
+# Crossplane to manage them. Resources are adopted (not created)
 # and won't be deleted when the Foundation is removed.
 #
 # Steps to import:
 # 1. Get your organization ID: aws organizations describe-organization
 # 2. Get existing OU IDs: aws organizations list-organizational-units-for-parent
 # 3. Get existing account IDs: aws organizations list-accounts
-# 4. Set externalName on each resource you want to adopt
+# 4. Get VPC/subnet/route table IDs: aws ec2 describe-vpcs, describe-subnets, etc.
+# 5. Set externalName on each resource you want to adopt
 #
 # Management policies:
 # - Organization uses Observe-only (won't delete the org)
 # - OUs and accounts can use full management (will be deleted if removed)
+# - Networks use Observe-only per-resource to prevent deletion
 # - Adjust per-resource as needed
 
 apiVersion: aws.hops.ops.com.ai/v1alpha1
@@ -127,3 +129,80 @@ spec:
           - shared-services
           - production
           - development
+
+  # ---------------------------------------------------------------------------
+  # Import existing VPCs
+  # ---------------------------------------------------------------------------
+  # Each network can import existing VPC, subnets, route tables, and gateways.
+  # Use direct poolId (not poolRef) when importing - the VPC already has its CIDR.
+  # Get resource IDs:
+  #   aws ec2 describe-vpcs
+  #   aws ec2 describe-internet-gateways
+  #   aws ec2 describe-subnets
+  #   aws ec2 describe-route-tables
+  networks:
+    - name: production
+      account: production
+      region: us-east-1
+      managementPolicies: [Observe]  # Observe-only at network level
+
+      # Direct pool ID (VPC already allocated from this pool)
+      ipam:
+        ipv4:
+          poolId: ipam-pool-abc123def  # Direct ID, not poolRef
+          netmaskLength: 16
+
+      # Import VPC
+      vpc:
+        externalName: vpc-0abc123def456789
+        managementPolicies: [Observe]
+
+      # Import Internet Gateway
+      internetGateway:
+        externalName: igw-0abc123def456789
+        managementPolicies: [Observe]
+
+      # Import subnets by name → ID mapping
+      subnetLayout:
+        availabilityZones: [a, b, c]
+        public:
+          enabled: true
+          netmaskLength: 24
+        private:
+          enabled: true
+          netmaskLength: 20
+        externalNames:
+          public-a: subnet-pub-a-123456
+          public-b: subnet-pub-b-123456
+          public-c: subnet-pub-c-123456
+          private-a: subnet-priv-a-123456
+          private-b: subnet-priv-b-123456
+          private-c: subnet-priv-c-123456
+        managementPolicies: [Observe]
+
+      # Import route tables
+      routeTables:
+        externalNames:
+          public: rtb-pub-123456
+          private-a: rtb-priv-a-123456
+          private-b: rtb-priv-b-123456
+          private-c: rtb-priv-c-123456
+        associationExternalNames:
+          public-a: rtbassoc-pub-a-123456
+          public-b: rtbassoc-pub-b-123456
+          public-c: rtbassoc-pub-c-123456
+          private-a: rtbassoc-priv-a-123456
+          private-b: rtbassoc-priv-b-123456
+          private-c: rtbassoc-priv-c-123456
+        managementPolicies: [Observe]
+
+      # Import NAT gateways (if you have them)
+      # Get IDs: aws ec2 describe-nat-gateways
+      nat:
+        enabled: true
+        strategy: SingleAz  # Or HighlyAvailable if you have one per AZ
+        externalNames:
+          a: nat-0abc123def456789
+        eipExternalNames:
+          a: eipalloc-0abc123def456789
+        managementPolicies: [Observe]

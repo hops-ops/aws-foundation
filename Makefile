@@ -15,7 +15,8 @@ EXAMPLES := \
     examples/foundations/individual.yaml:: \
     examples/foundations/enterprise.yaml:: \
     examples/foundations/enterprise.yaml::examples/test/mocks/observed-resources/enterprise/steps/1 \
-    examples/foundations/import-existing.yaml::
+    examples/foundations/import-existing.yaml:: \
+    examples/foundations/with-networks.yaml::
 
 clean:
 	rm -rf _output

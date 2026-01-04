@@ -5,6 +5,7 @@
 # - Dedicated accounts for security tooling and shared services
 # - Identity Center with groups and permission sets
 # - IPAM with hierarchical pools (global → regional → environment)
+# - VPC networks in each account with consistent layouts
 # - Cross-account access with permission boundaries
 #
 # This example creates:
@@ -15,6 +16,7 @@
 # - 3 Identity Store Groups
 # - 3 Permission Sets with account assignments
 # - IPAM with multi-region hierarchical IPv4 and IPv6 pools
+# - VPCs in prod, staging, dev, and shared-services accounts
 #
 # After apply, each account has a ProviderConfig ready:
 #   providerConfigRef:
@@ -394,3 +396,84 @@ spec:
             labels:
               region: us-west-2
               eks-ready: "true"
+
+  # ---------------------------------------------------------------------------
+  # Network Defaults
+  # ---------------------------------------------------------------------------
+  # These settings are inherited by all networks unless overridden.
+  networkDefaults:
+    subnetLayout:
+      availabilityZones: [a, b, c]
+      public:
+        enabled: true
+        netmaskLength: 24
+      private:
+        enabled: true
+        netmaskLength: 20
+    nat:
+      enabled: true
+      strategy: SingleAz
+
+  # ---------------------------------------------------------------------------
+  # Networks - VPCs in each account
+  # ---------------------------------------------------------------------------
+  # Each network targets a specific account and allocates from IPAM pools.
+  # - `poolRef` references pools by name (Foundation resolves to pool ID)
+  # - `account` targets that account's ProviderConfig
+  # - Omitting `account` targets management account
+  networks:
+    # Production VPC - HA NAT, all 3 AZs
+    - name: production
+      account: acme-prod
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-prod
+          netmaskLength: 16
+      nat:
+        strategy: HighlyAvailable    # Override: HA for production
+      tags:
+        environment: production
+        tier: workload
+
+    # Staging VPC - 2 AZs for cost savings
+    - name: staging
+      account: acme-staging
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-nonprod
+          netmaskLength: 16
+      subnetLayout:
+        availabilityZones: [a, b]    # Override: only 2 AZs
+      tags:
+        environment: staging
+        tier: workload
+
+    # Dev VPC - minimal, single AZ, no NAT
+    - name: dev
+      account: acme-dev
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-nonprod
+          netmaskLength: 18           # Smaller /18 for dev
+      subnetLayout:
+        availabilityZones: [a]        # Override: single AZ
+        private:
+          enabled: false              # Override: no private subnets
+      nat:
+        enabled: false                # Override: no NAT
+      tags:
+        environment: development
+        tier: workload
+
+    # Shared services VPC - management account, manual CIDR
+    - name: shared-services
+      # No account = uses management account (spec.aws.providerConfig)
+      region: us-east-1
+      vpc:
+        cidr: "10.32.0.0/16"          # Manual CIDR (not from IPAM)
+      tags:
+        environment: shared
+        tier: infrastructure

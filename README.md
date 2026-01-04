@@ -4,18 +4,21 @@ Foundation provides a single resource to manage your entire AWS foundation, from
 
 ## What Foundation Composes
 
-Foundation is a unified API that composes three specialized XRDs:
+Foundation is a unified API that composes four specialized XRDs:
 
 | Component | Purpose | Documentation |
 |-----------|---------|---------------|
 | **[Organization](../aws-organization)** | AWS Organization, OUs, accounts, delegated administrators | Consolidated billing, SCPs, account factory |
 | **[Identity Center](../aws-identity-center)** | SSO groups, users, permission sets, account assignments | Single sign-on, time-limited credentials, federation-ready |
 | **[IPAM](../aws-ipam)** | IP address pools, automatic allocation, RAM sharing | No overlapping CIDRs, dual-stack IPv6, compliance tracking |
+| **[Network](../aws-network)** | VPCs, subnets, route tables, NAT gateways | Per-account VPCs with IPAM allocation, consistent layouts |
 
 **Why one resource?**
 - Account names are referenced everywhere and automatically resolved to AWS account IDs
 - OU paths are resolved for IPAM RAM sharing
 - Each account gets a ProviderConfig for cross-account access via `OrganizationAccountAccessRole`
+- IPAM pool names are resolved to pool IDs for network CIDR allocation
+- Networks automatically target the correct account via their ProviderConfig
 - Single source of truth for your entire AWS foundation
 
 ## Prerequisites
@@ -142,50 +145,37 @@ spec:
                 default: 56  # /56 per VPC
                 min: 52
                 max: 60
-```
 
-**Using the pools:** After Foundation is ready, use Network Allocation XRDs to reserve CIDRs from these pools, then create Networks with those allocations.
-
-```yaml
-# 1. Allocate IPv4 from regional pool
-apiVersion: aws.hops.ops.com.ai/v1alpha1
-kind: IPv4NetworkAllocation
-metadata:
-  name: my-network
-spec:
-  regionalPoolId: <from-status.ipam.pools.ipv4[name=ipv4-us-east-1].id>
-  scopeId: <from-status.ipam.privateDefaultScopeId>
----
-# 2. Allocate IPv6 ULA from regional pool (optional)
-apiVersion: aws.hops.ops.com.ai/v1alpha1
-kind: IPv6ULANetworkAllocation
-metadata:
-  name: my-network
-spec:
-  regionalPoolId: <from-status.ipam.pools.ipv6.ula[name=ipv6-ula-us-east-1].id>
-  scopeId: <from-status.ipam.privateDefaultScopeId>
-  region: us-east-1
----
-# 3. Create Network using allocated CIDRs
-apiVersion: aws.hops.ops.com.ai/v1alpha1
-kind: Network
-metadata:
-  name: my-network
-spec:
-  clusterName: my-cluster
-  vpc:
-    cidr: <from-ipv4-allocation-status.cidr>
-    ipv6:
-      ula:
-        enabled: true
-        cidr: <from-ipv6-ula-allocation-status.cidr>
-      amazonProvided:
-        enabled: true  # Also get public IPv6
-  subnets: <from-allocation-status.subnets>
-  aws:
-    config:
+  # ═══════════════════════════════════════════════════════════════════
+  # Network - dual-stack VPC with IPAM allocation
+  # ═══════════════════════════════════════════════════════════════════
+  networks:
+    - name: main
       region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1      # Reference pool by name
+          netmaskLength: 16            # /16 = 65k IPs, room to grow
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1  # Private IPv6
+          netmaskLength: 56
+      subnetLayout:
+        availabilityZones: [a]         # Single AZ keeps it simple and cheap
+        public:
+          enabled: true
+          netmaskLength: 24
+        private:
+          enabled: true
+          netmaskLength: 20
+      nat:
+        enabled: false                 # No NAT - use IPv6 or bastion for egress
 ```
+
+**Why this network config?**
+- **Dual-stack** - IPv4 for compatibility, IPv6 for the future
+- **Single AZ** - Simple and cheap; add AZs when you need HA
+- **No NAT** - NAT gateways cost ~$32/month; use IPv6 egress or a bastion instead
+- **poolRef** - Reference pools by name; Foundation resolves to pool IDs automatically
 
 ### Stage 2: Small Team
 
@@ -194,6 +184,7 @@ You're hiring. You need different access levels and maybe a separate dev environ
 **What changes:**
 - Add groups for different roles (Developers, ReadOnly)
 - Add more permission sets with appropriate policies
+- Upgrade network to 3 AZs for high availability and HA stateful workloads (PostgreSQL, etc.)
 - Consider adding a second AWS account for dev/staging
 
 ```yaml
@@ -223,26 +214,51 @@ permissionSets:
       - arn:aws:iam::aws:policy/ViewOnlyAccess
 ```
 
-### Stage 3: Multiple Accounts
+```yaml
+# Upgrade network to 3 AZs for stateful workloads:
+networks:
+  - name: main
+    region: us-east-1
+    ipam:
+      ipv4:
+        poolRef: ipv4-us-east-1
+        netmaskLength: 16            # /16 = 65k IPs, room to grow
+      ipv6Ula:
+        poolRef: ipv6-ula-us-east-1
+        netmaskLength: 56
+    subnetLayout:
+      availabilityZones: [a, b, c]   # 3 AZs for stateful apps (PostgreSQL, etc.)
+      public:
+        enabled: true
+        netmaskLength: 24
+      private:
+        enabled: true
+        netmaskLength: 20
+    nat:
+      enabled: true
+      strategy: SingleAz             # NAT in one AZ, saves $64/month vs HA
+```
 
-You need environment isolation. Production shouldn't share an account with dev.
+### Stage 3: Multiple Teams
+
+You're growing. A second team needs their own account and VPC.
 
 **What you need:**
 - AWS Organization to create and manage accounts
-- Organizational Units (OUs) for grouping accounts
-- Permission sets assigned to specific accounts
-- IPAM pools shared across accounts
+- Organizational Units (OUs) for grouping team accounts
+- Permission sets assigned per team
+- IPAM pools shared across team accounts
 
 **Why Organizations?**
 - Consolidated billing
 - Service Control Policies (SCPs) for guardrails
 - Centralized Identity Center management
-- Account factory - spin up new accounts in minutes
+- Account factory - spin up new team accounts in minutes
 
-**Why OUs?**
-- Apply policies to groups of accounts
-- Share IPAM pools with entire OUs via RAM
-- Logical grouping (Workloads/Prod vs Workloads/Dev)
+**Why account-per-team?**
+- Blast radius isolation between teams
+- Clear cost attribution
+- Teams own their infrastructure
 
 ```yaml
 apiVersion: aws.hops.ops.com.ai/v1alpha1
@@ -259,7 +275,6 @@ spec:
 
   tags:
     organization: acme
-    managed-by: crossplane
 
   # Enable AWS Organizations
   organization:
@@ -268,19 +283,19 @@ spec:
 
   # Create OU hierarchy
   organizationalUnits:
-    - path: Workloads
-    - path: Workloads/Prod
-    - path: Workloads/Dev
+    - path: Teams
+    - path: Teams/Alpha
+    - path: Teams/Beta
 
-  # Create accounts in OUs
+  # Team accounts
   accounts:
-    - name: acme-prod
-      email: aws-prod@acme.example.com
-      ou: Workloads/Prod
+    - name: acme-alpha
+      email: aws-alpha@acme.example.com
+      ou: Teams/Alpha
 
-    - name: acme-dev
-      email: aws-dev@acme.example.com
-      ou: Workloads/Dev
+    - name: acme-beta
+      email: aws-beta@acme.example.com
+      ou: Teams/Beta
 
   identityCenter:
     region: us-east-1
@@ -289,20 +304,30 @@ spec:
 
     groups:
       - name: Administrators
-      - name: Developers
+      - name: TeamAlpha
+      - name: TeamBeta
 
     permissionSets:
       - name: AdministratorAccess
         managedPolicies:
           - arn:aws:iam::aws:policy/AdministratorAccess
         assignToGroups: [Administrators]
-        assignToAccounts: [acme-prod, acme-dev]  # Reference by name
+        assignToAccounts: [acme-alpha, acme-beta]
 
-      - name: PowerUserAccess
+      # Each team gets access to their account only
+      - name: TeamAccess
+        sessionDuration: PT8H
         managedPolicies:
           - arn:aws:iam::aws:policy/PowerUserAccess
-        assignToGroups: [Developers]
-        assignToAccounts: [acme-dev]  # Developers only get dev access
+        assignToGroups: [TeamAlpha]
+        assignToAccounts: [acme-alpha]
+
+      - name: TeamAccess
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups: [TeamBeta]
+        assignToAccounts: [acme-beta]
 
   ipam:
     region: us-east-1
@@ -310,14 +335,13 @@ spec:
 
     pools:
       ipv4:
-        # Global pool - top of hierarchy
         - name: ipv4-global
           cidr: 10.0.0.0/8
           allocations:
             netmaskLength:
               default: 12
 
-        # Regional pool - allocates from global
+        # Regional pool shared with all teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
           locale: us-east-1
@@ -325,27 +349,28 @@ spec:
           allocations:
             netmaskLength:
               default: 16
+          ramShareTargets:
+            - ou: Teams
 
       ipv6:
         ula:
-          # Global ULA pool
           - name: ipv6-ula-global
             netmaskLength: 40
             allocations:
               netmaskLength:
                 default: 44
 
-          # Regional ULA pool
           - name: ipv6-ula-us-east-1
             sourcePoolRef: ipv6-ula-global
             locale: us-east-1
             netmaskLength: 44
             allocations:
               netmaskLength:
-                default: 48
+                default: 56
+            ramShareTargets:
+              - ou: Teams
 
         gua:
-          # Amazon-provided public IPv6
           - name: ipv6-gua-us-east-1
             locale: us-east-1
             netmaskLength: 52
@@ -354,27 +379,81 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
+            ramShareTargets:
+              - ou: Teams
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Networks - each team gets their own VPC
+  # ═══════════════════════════════════════════════════════════════════
+  networks:
+    # Team Alpha VPC
+    - name: alpha
+      account: acme-alpha
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
+      subnetLayout:
+        availabilityZones: [a, b, c]
+        public:
+          enabled: true
+          netmaskLength: 24
+        private:
+          enabled: true
+          netmaskLength: 20
+      nat:
+        enabled: true
+        strategy: SingleAz
+
+    # Team Beta VPC
+    - name: beta
+      account: acme-beta
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
+      subnetLayout:
+        availabilityZones: [a, b, c]
+        public:
+          enabled: true
+          netmaskLength: 24
+        private:
+          enabled: true
+          netmaskLength: 20
+      nat:
+        enabled: true
+        strategy: SingleAz
 ```
 
 ### Stage 4: Enterprise
 
-You have dedicated teams, compliance requirements, and need centralized services.
+You have multiple product teams, compliance requirements, and need centralized services.
 
 **What changes:**
+- Account-per-team model with dedicated VPCs
 - Dedicated accounts for security tooling, shared services, logging
-- Delegated administration (Identity Center and IPAM managed from shared-services, not management account)
-- Separate IPAM pools per environment with RAM sharing to OUs
-- More granular permission sets
+- Delegated administration (Identity Center and IPAM managed from platform, not management account)
+- Separate IPAM pools per team with RAM sharing
+- Team-specific permission sets
+
+**Why account-per-team?**
+- Blast radius isolation - one team's misconfiguration doesn't affect others
+- Clear cost attribution per team
+- Teams own their infrastructure, platform provides guardrails
+- Easier compliance and audit boundaries
 
 **Why delegate administration?**
 - Management account should only manage Organizations
 - Reduces blast radius if credentials are compromised
 - Teams can self-service within their delegated scope
-
-**Why separate IPAM pools?**
-- Prod and dev don't compete for IP space
-- Different allocation sizes per environment
-- Clear boundaries and quotas
 
 ```yaml
 apiVersion: aws.hops.ops.com.ai/v1alpha1
@@ -400,10 +479,11 @@ spec:
 
   organizationalUnits:
     - path: Security
-    - path: Infrastructure
-    - path: Workloads
-    - path: Workloads/Prod
-    - path: Workloads/NonProd
+    - path: Platform
+    - path: Teams
+    - path: Teams/Alpha
+    - path: Teams/Beta
+    - path: Teams/Data
 
   accounts:
     # Security account - GuardDuty, Security Hub, CloudTrail
@@ -411,30 +491,30 @@ spec:
       email: aws-security@acme.example.com
       ou: Security
 
-    # Shared services - Identity Center admin, IPAM admin, CI/CD
-    - name: acme-shared
-      email: aws-shared@acme.example.com
-      ou: Infrastructure
+    # Platform - Identity Center admin, IPAM admin, CI/CD, shared tooling
+    - name: acme-platform
+      email: aws-platform@acme.example.com
+      ou: Platform
 
-    # Workload accounts
-    - name: acme-prod
-      email: aws-prod@acme.example.com
-      ou: Workloads/Prod
+    # Team accounts - each team owns their account
+    - name: acme-alpha
+      email: aws-alpha@acme.example.com
+      ou: Teams/Alpha
 
-    - name: acme-staging
-      email: aws-staging@acme.example.com
-      ou: Workloads/NonProd
+    - name: acme-beta
+      email: aws-beta@acme.example.com
+      ou: Teams/Beta
 
-    - name: acme-dev
-      email: aws-dev@acme.example.com
-      ou: Workloads/NonProd
+    - name: acme-data
+      email: aws-data@acme.example.com
+      ou: Teams/Data
 
-  # Delegate Identity Center and IPAM to shared-services
+  # Delegate Identity Center and IPAM to platform
   delegatedAdministrators:
     - servicePrincipal: sso.amazonaws.com
-      account: acme-shared
+      account: acme-platform
     - servicePrincipal: ipam.amazonaws.com
-      account: acme-shared
+      account: acme-platform
 
   identityCenter:
     region: us-east-1
@@ -446,46 +526,56 @@ spec:
         description: Full access to all accounts
       - name: SecurityTeam
         description: Security tooling access
-      - name: ProdEngineers
-        description: Production deployment access
-      - name: Developers
-        description: Development environment access
+      - name: TeamAlpha
+        description: Alpha team members
+      - name: TeamBeta
+        description: Beta team members
+      - name: DataEngineers
+        description: Data team members
 
     permissionSets:
       - name: AdministratorAccess
         managedPolicies:
           - arn:aws:iam::aws:policy/AdministratorAccess
         assignToGroups: [PlatformAdmins]
-        assignToAccounts: [acme-shared, acme-security, acme-prod, acme-staging, acme-dev]
+        assignToAccounts: [acme-platform, acme-security, acme-alpha, acme-beta, acme-data]
 
       - name: SecurityAudit
         managedPolicies:
           - arn:aws:iam::aws:policy/SecurityAudit
         assignToGroups: [SecurityTeam]
-        assignToAccounts: [acme-security, acme-prod, acme-staging, acme-dev]
+        assignToAccounts: [acme-security, acme-alpha, acme-beta, acme-data]
 
-      - name: ProdDeploy
-        sessionDuration: PT2H  # Short sessions for prod
-        managedPolicies:
-          - arn:aws:iam::aws:policy/PowerUserAccess
-        assignToGroups: [ProdEngineers]
-        assignToAccounts: [acme-prod]
-
-      - name: DevAccess
+      # Team-specific access - each team only gets access to their account
+      - name: TeamAccess
         sessionDuration: PT8H
         managedPolicies:
           - arn:aws:iam::aws:policy/PowerUserAccess
-        assignToGroups: [Developers]
-        assignToAccounts: [acme-staging, acme-dev]
+        assignToGroups: [TeamAlpha]
+        assignToAccounts: [acme-alpha]
+
+      - name: TeamAccess
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups: [TeamBeta]
+        assignToAccounts: [acme-beta]
+
+      - name: DataAccess
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups: [DataEngineers]
+        assignToAccounts: [acme-data]
 
   ipam:
-    delegatedAdminAccount: acme-shared
+    delegatedAdminAccount: acme-platform
     region: us-east-1
-    operatingRegions: [us-east-1, us-west-2]
+    operatingRegions: [us-east-1]
 
     pools:
       # ═══════════════════════════════════════════════════════════
-      # IPv4 Hierarchy: Global → Regional → Environment
+      # IPv4 Hierarchy: Global → Regional → shared with Teams OU
       # ═══════════════════════════════════════════════════════════
       ipv4:
         # Global pool - top of hierarchy
@@ -493,105 +583,51 @@ spec:
           cidr: 10.0.0.0/8
           allocations:
             netmaskLength:
-              default: 10  # Carve /10 per region
+              default: 12  # Carve /12 per region
 
-        # --- us-east-1 regional pools ---
+        # Regional pool - shared with all teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
           locale: us-east-1
-          cidr: 10.0.0.0/10      # 10.0.0.0 - 10.63.255.255
-          allocations:
-            netmaskLength:
-              default: 12
-
-        # Production pool - shared with Workloads/Prod OU
-        - name: ipv4-us-east-1-prod
-          sourcePoolRef: ipv4-us-east-1
-          locale: us-east-1
-          cidr: 10.0.0.0/12      # 10.0.0.0 - 10.15.255.255
+          cidr: 10.0.0.0/12
           allocations:
             netmaskLength:
               default: 16
           ramShareTargets:
-            - ou: Workloads/Prod
+            - ou: Teams              # All team accounts can allocate
 
-        # Non-prod pool - shared with Workloads/NonProd OU
-        - name: ipv4-us-east-1-nonprod
-          sourcePoolRef: ipv4-us-east-1
+        # Platform pool
+        - name: ipv4-us-east-1-platform
+          sourcePoolRef: ipv4-global
           locale: us-east-1
-          cidr: 10.16.0.0/12     # 10.16.0.0 - 10.31.255.255
-          allocations:
-            netmaskLength:
-              default: 16
-          ramShareTargets:
-            - ou: Workloads/NonProd
-
-        # Shared services pool
-        - name: ipv4-us-east-1-shared
-          sourcePoolRef: ipv4-us-east-1
-          locale: us-east-1
-          cidr: 10.32.0.0/16     # 10.32.0.0 - 10.32.255.255
+          cidr: 10.16.0.0/16
           allocations:
             netmaskLength:
               default: 20
           ramShareTargets:
-            - account: acme-shared
-
-        # --- us-west-2 regional pools (DR/multi-region) ---
-        - name: ipv4-us-west-2
-          sourcePoolRef: ipv4-global
-          locale: us-west-2
-          cidr: 10.64.0.0/10     # 10.64.0.0 - 10.127.255.255
-          allocations:
-            netmaskLength:
-              default: 12
-
-        - name: ipv4-us-west-2-prod
-          sourcePoolRef: ipv4-us-west-2
-          locale: us-west-2
-          cidr: 10.64.0.0/12
-          allocations:
-            netmaskLength:
-              default: 16
-          ramShareTargets:
-            - ou: Workloads/Prod
+            - account: acme-platform
 
       # ═══════════════════════════════════════════════════════════
-      # IPv6 Pools
+      # IPv6 Pools - shared with Teams OU
       # ═══════════════════════════════════════════════════════════
       ipv6:
-        # ULA (private) pools - fd00::/8, not internet-routable
         ula:
-          # Global ULA pool
           - name: ipv6-ula-global
             netmaskLength: 40
             allocations:
               netmaskLength:
                 default: 44
 
-          # Regional ULA - us-east-1
           - name: ipv6-ula-us-east-1
             sourcePoolRef: ipv6-ula-global
             locale: us-east-1
             netmaskLength: 44
             allocations:
               netmaskLength:
-                default: 48
+                default: 56
             ramShareTargets:
-              - ou: Workloads
+              - ou: Teams
 
-          # Regional ULA - us-west-2
-          - name: ipv6-ula-us-west-2
-            sourcePoolRef: ipv6-ula-global
-            locale: us-west-2
-            netmaskLength: 44
-            allocations:
-              netmaskLength:
-                default: 48
-            ramShareTargets:
-              - ou: Workloads
-
-        # GUA (public) pools - Amazon-provided, internet-routable
         gua:
           - name: ipv6-gua-us-east-1
             locale: us-east-1
@@ -602,23 +638,93 @@ spec:
               netmaskLength:
                 default: 56
             ramShareTargets:
-              - ou: Workloads
+              - ou: Teams
 
-          - name: ipv6-gua-us-west-2
-            locale: us-west-2
-            netmaskLength: 52
-            publicIpSource: amazon
-            awsService: ec2
-            allocations:
-              netmaskLength:
-                default: 56
-            ramShareTargets:
-              - ou: Workloads
+  # ═══════════════════════════════════════════════════════════════════
+  # Network Defaults - consistent subnet layouts
+  # ═══════════════════════════════════════════════════════════════════
+  networkDefaults:
+    subnetLayout:
+      availabilityZones: [a, b, c]
+      public:
+        enabled: true
+        netmaskLength: 24
+      private:
+        enabled: true
+        netmaskLength: 20
+    nat:
+      enabled: true
+      strategy: SingleAz
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Networks - each team gets their own VPC
+  # ═══════════════════════════════════════════════════════════════════
+  networks:
+    # Team Alpha VPC
+    - name: alpha
+      account: acme-alpha
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
+
+    # Team Beta VPC
+    - name: beta
+      account: acme-beta
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
+
+    # Data team VPC
+    - name: data
+      account: acme-data
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
+
+    # Platform VPC - shared tooling, CI/CD
+    - name: platform
+      account: acme-platform
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-platform
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
+```
+
+**Network status:**
+```yaml
+status:
+  networks:
+    - name: alpha
+      account: acme-alpha
+      region: us-east-1
+      ready: true
+      vpcId: vpc-abc123
+      cidr:
+        ipv4: "10.0.0.0/16"
 ```
 
 ### Stage 5: Import Existing Resources
 
-Already have an AWS Organization, Identity Center, or IPAM? Import them to bring existing infrastructure under GitOps management.
+Already have an AWS Organization, Identity Center, IPAM, or VPCs? Import them to bring existing infrastructure under GitOps management.
 
 **Why import?**
 - Preserve existing configurations - no disruption to running workloads
@@ -699,6 +805,67 @@ spec:
         # Format: cidr_pool-id
         cidrExternalName: 10.0.0.0/8_ipam-pool-0123456789abcdef0
         managementPolicies: ["Create", "Observe", "Update", "LateInitialize"]
+
+  # Import existing VPCs
+  # Get IDs: aws ec2 describe-vpcs, describe-subnets, describe-route-tables
+  networks:
+    - name: production
+      account: acme-prod
+      region: us-east-1
+      managementPolicies: ["Observe"]  # Observe-only at network level
+
+      # Direct pool ID (use when pool is external to Foundation)
+      ipam:
+        ipv4:
+          poolId: ipam-pool-abc123     # Direct ID, not poolRef
+          netmaskLength: 16
+
+      # Import VPC by ID
+      vpc:
+        externalName: vpc-0123456789abcdef0
+        managementPolicies: ["Observe"]
+
+      # Import Internet Gateway
+      internetGateway:
+        externalName: igw-0123456789abcdef0
+        managementPolicies: ["Observe"]
+
+      # Import subnets by name → ID mapping
+      subnetLayout:
+        availabilityZones: [a, b, c]
+        public:
+          enabled: true
+          netmaskLength: 24
+        private:
+          enabled: true
+          netmaskLength: 20
+        externalNames:
+          public-a: subnet-pub-a-123
+          public-b: subnet-pub-b-456
+          public-c: subnet-pub-c-789
+          private-a: subnet-priv-a-123
+          private-b: subnet-priv-b-456
+          private-c: subnet-priv-c-789
+        managementPolicies: ["Observe"]
+
+      # Import route tables
+      routeTables:
+        externalNames:
+          public: rtb-pub-123
+          private-a: rtb-priv-a-123
+          private-b: rtb-priv-b-456
+          private-c: rtb-priv-c-789
+        associationExternalNames:
+          public-a: rtbassoc-pub-a-123
+          public-b: rtbassoc-pub-b-456
+          public-c: rtbassoc-pub-c-789
+          private-a: rtbassoc-priv-a-123
+          private-b: rtbassoc-priv-b-456
+          private-c: rtbassoc-priv-c-789
+        managementPolicies: ["Observe"]
+
+      nat:
+        enabled: false  # Import doesn't manage NAT
 ```
 
 ## Using Account ProviderConfigs
@@ -763,6 +930,21 @@ status:
     pools:
       - name: prod-ipv4
         id: ipam-pool-abc123
+  networks:
+    - name: production
+      account: acme-prod
+      region: us-east-1
+      ready: true
+      vpcId: vpc-abc123def
+      cidr:
+        ipv4: "10.0.0.0/16"
+    - name: staging
+      account: acme-staging
+      region: us-east-1
+      ready: true
+      vpcId: vpc-def456ghi
+      cidr:
+        ipv4: "10.16.0.0/16"
 ```
 
 ## Recommendations
@@ -788,6 +970,14 @@ status:
 - **Use allocation rules** - min/max netmask prevents wasteful oversizing
 - **Plan for dual-stack** - IPv6 eliminates IP exhaustion concerns
 - **Separate pools per environment** - Prod and non-prod don't compete for IP space
+
+### Networks
+
+- **Use networkDefaults** - Define consistent subnet layouts once, override where needed
+- **Use poolRef, not poolId** - Reference pools by name for clarity and maintainability
+- **Right-size per environment** - Production needs HA NAT and 3 AZs; dev can use 1 AZ with no NAT
+- **Omit account for management account** - Networks without `account` target `spec.aws.providerConfig`
+- **Import existing VPCs** - Use `externalName` and `managementPolicies: ["Observe"]` to adopt VPCs
 
 ### IPv6 Pool Sizing Reference
 
@@ -818,11 +1008,7 @@ Enable these in `organization.awsServiceAccessPrincipals` based on your needs:
 - [aws-organization](../aws-organization/README.md) - Organization, OUs, accounts, delegated administrators
 - [aws-identity-center](../aws-identity-center/README.md) - SSO groups, users, permission sets, federation
 - [aws-ipam](../aws-ipam/README.md) - IP pools, dual-stack IPv6, RAM sharing
-
-**Network allocation (use after Foundation is ready):**
-- [aws-ipv4-network-allocation](../aws-ipv4-network-allocation/README.md) - Allocate IPv4 CIDRs from regional pools
-- [aws-ipv6-ula-network-allocation](../aws-ipv6-ula-network-allocation/README.md) - Allocate IPv6 ULA CIDRs from regional pools
-- [aws-network](../aws-network/README.md) - Create VPCs and subnets using allocated CIDRs
+- [aws-network](../aws-network/README.md) - VPCs, subnets, route tables, NAT gateways
 
 **AWS documentation:**
 - [IAM Identity Center](https://docs.aws.amazon.com/singlesignon/latest/userguide/)
@@ -836,6 +1022,7 @@ Enable these in `organization.awsServiceAccessPrincipals` based on your needs:
 ```bash
 make render-individual     # Stage 1 example
 make render-enterprise     # Stage 4 example
+make render-with-networks  # Stage 4 example with networks
 make render-minimal        # Organization only
 make test                  # Run tests
 make validate              # Validate compositions

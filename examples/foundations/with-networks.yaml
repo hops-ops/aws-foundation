@@ -1,0 +1,222 @@
+# Enterprise Foundation with Networks
+# ====================================
+# Complete multi-account architecture with VPC networks in each account.
+# Extends the enterprise example with:
+# - Network defaults for consistent subnet layout
+# - VPCs in production, staging, and dev accounts using IPAM
+# - Shared services VPC in management account with manual CIDR
+#
+# Key features demonstrated:
+# - `networkDefaults` for consistent subnet layout across all networks
+# - `poolRef` to reference IPAM pools by name (resolved to pool ID)
+# - `account` to target member accounts (uses their ProviderConfig)
+# - Omitting `account` targets management account
+# - Override defaults per-network (e.g., fewer AZs for dev)
+
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
+metadata:
+  name: acme
+  namespace: acme
+spec:
+  managementPolicies: ["*"]
+
+  aws:
+    providerConfig: aws-management-account
+    region: us-east-1
+
+  tags:
+    organization: acme
+    managed-by: crossplane
+
+  # ---------------------------------------------------------------------------
+  # Organization Settings
+  # ---------------------------------------------------------------------------
+  organization:
+    awsServiceAccessPrincipals:
+      - sso.amazonaws.com
+      - ipam.amazonaws.com
+      - ram.amazonaws.com
+
+  organizationalUnits:
+    - path: Security
+    - path: Infrastructure
+    - path: Workloads
+    - path: Workloads/Prod
+    - path: Workloads/Non-Prod
+
+  # ---------------------------------------------------------------------------
+  # Accounts
+  # ---------------------------------------------------------------------------
+  accounts:
+    - name: acme-prod
+      email: prod@acme.example.com
+      ou: Workloads/Prod
+      tags:
+        environment: production
+
+    - name: acme-staging
+      email: staging@acme.example.com
+      ou: Workloads/Non-Prod
+      tags:
+        environment: staging
+
+    - name: acme-dev
+      email: dev@acme.example.com
+      ou: Workloads/Non-Prod
+      tags:
+        environment: development
+
+    - name: acme-shared-services
+      email: shared-services@acme.example.com
+      ou: Infrastructure
+      tags:
+        team: platform
+
+  delegatedAdministrators:
+    - servicePrincipal: sso.amazonaws.com
+      account: acme-shared-services
+    - servicePrincipal: ipam.amazonaws.com
+      account: acme-shared-services
+
+  # ---------------------------------------------------------------------------
+  # Identity Center (minimal for this example)
+  # ---------------------------------------------------------------------------
+  identityCenter:
+    region: us-east-1
+    identityStoreId: d-1234567890
+    instanceArn: arn:aws:sso:::instance/ssoins-abcdef0123456789
+
+    groups:
+      - name: Administrators
+        description: Full administrative access
+
+    permissionSets:
+      - name: AdministratorAccess
+        managedPolicies:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+        assignToGroups:
+          - Administrators
+        assignToAccounts:
+          - acme-prod
+          - acme-staging
+          - acme-dev
+          - acme-shared-services
+
+  # ---------------------------------------------------------------------------
+  # IPAM - Pools for VPC CIDR allocation
+  # ---------------------------------------------------------------------------
+  ipam:
+    region: us-east-1
+    operatingRegions:
+      - us-east-1
+
+    pools:
+      ipv4:
+        # Global pool
+        - name: ipv4-global
+          cidr: 10.0.0.0/8
+
+        # Regional pools
+        - name: ipv4-us-east-1
+          sourcePoolRef: ipv4-global
+          locale: us-east-1
+          cidr: 10.0.0.0/10
+
+        # Environment pools
+        - name: ipv4-us-east-1-prod
+          sourcePoolRef: ipv4-us-east-1
+          locale: us-east-1
+          cidr: 10.0.0.0/12
+          allocations:
+            netmaskLength:
+              default: 16
+          ramShareTargets:
+            - ou: Workloads/Prod
+
+        - name: ipv4-us-east-1-nonprod
+          sourcePoolRef: ipv4-us-east-1
+          locale: us-east-1
+          cidr: 10.16.0.0/12
+          allocations:
+            netmaskLength:
+              default: 16
+          ramShareTargets:
+            - ou: Workloads/Non-Prod
+
+  # ---------------------------------------------------------------------------
+  # Network Defaults
+  # ---------------------------------------------------------------------------
+  # These settings are inherited by all networks unless overridden.
+  networkDefaults:
+    subnetLayout:
+      availabilityZones: [a, b, c]
+      public:
+        enabled: true
+        netmaskLength: 24
+      private:
+        enabled: true
+        netmaskLength: 20
+    nat:
+      enabled: true
+      strategy: SingleAz
+
+  # ---------------------------------------------------------------------------
+  # Networks - VPCs in each account
+  # ---------------------------------------------------------------------------
+  networks:
+    # Production VPC - HA NAT, all 3 AZs
+    - name: production
+      account: acme-prod
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-prod
+          netmaskLength: 16
+      nat:
+        strategy: HighlyAvailable    # Override: HA for production
+      tags:
+        environment: production
+        tier: workload
+
+    # Staging VPC - 2 AZs for cost savings
+    - name: staging
+      account: acme-staging
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-nonprod
+          netmaskLength: 16
+      subnetLayout:
+        availabilityZones: [a, b]    # Override: only 2 AZs
+      tags:
+        environment: staging
+        tier: workload
+
+    # Dev VPC - minimal, single AZ, no NAT
+    - name: dev
+      account: acme-dev
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-nonprod
+          netmaskLength: 18           # Smaller /18 for dev
+      subnetLayout:
+        availabilityZones: [a]        # Override: single AZ
+        private:
+          enabled: false              # Override: no private subnets
+      nat:
+        enabled: false                # Override: no NAT
+      tags:
+        environment: development
+        tier: workload
+
+    # Shared services VPC - management account, manual CIDR
+    - name: shared-services
+      # No account = uses management account (spec.aws.providerConfig)
+      region: us-east-1
+      vpc:
+        cidr: "10.32.0.0/16"          # Manual CIDR (not from IPAM)
+      tags:
+        environment: shared
+        tier: infrastructure

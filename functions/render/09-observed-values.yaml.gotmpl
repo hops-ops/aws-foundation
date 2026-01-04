@@ -198,3 +198,70 @@
     {{- end }}
   {{- end }}
 {{- end }}
+
+# =============================================================================
+# Network XRD Observations
+# =============================================================================
+# Networks are rendered as separate Network XRD instances.
+# Each network has its own observed state keyed by "network-<name>".
+
+{{- $networkObservedStatus := dict }}
+{{- $networksAllReady := true }}
+
+{{- range $network := $processedNetworks }}
+  {{- $networkName := $network.name }}
+  {{- $networkKey := printf "network-%s" $networkName }}
+  {{- $networkObservation := get $observed $networkKey }}
+
+  {{- $networkReady := false }}
+  {{- $networkVpcId := "Pending" }}
+  {{- $networkCidrIpv4 := "Pending" }}
+  {{- $networkCidrIpv6Ula := "Pending" }}
+  {{- $networkSubnets := dict }}
+
+  {{- with $networkObservation }}
+    {{- $resource := .resource | default (dict) }}
+    {{- $status := $resource.status | default (dict) }}
+    {{- $conditions := $status.conditions | default (list) }}
+    {{- range $conditions }}
+      {{- if and (eq (get . "type") "Ready") (eq (get . "status") "True") }}
+        {{- $networkReady = true }}
+      {{- end }}
+    {{- end }}
+
+    # Extract network details from Network XRD status
+    {{- $networkStatus := $status.network | default (dict) }}
+    {{- $candidateVpcId := $networkStatus.vpcId | default "" }}
+    {{- if $candidateVpcId }}
+      {{- $networkVpcId = $candidateVpcId }}
+    {{- end }}
+
+    {{- $cidrStatus := $networkStatus.cidr | default (dict) }}
+    {{- $candidateCidrIpv4 := $cidrStatus.ipv4 | default "" }}
+    {{- if $candidateCidrIpv4 }}
+      {{- $networkCidrIpv4 = $candidateCidrIpv4 }}
+    {{- end }}
+    {{- $candidateCidrIpv6Ula := $cidrStatus.ipv6Ula | default "" }}
+    {{- if $candidateCidrIpv6Ula }}
+      {{- $networkCidrIpv6Ula = $candidateCidrIpv6Ula }}
+    {{- end }}
+
+    # Extract subnet info
+    {{- $networkSubnets = $networkStatus.subnets | default (dict) }}
+  {{- end }}
+
+  {{- if not $networkReady }}
+    {{- $networksAllReady = false }}
+  {{- end }}
+
+  # Store observed status for this network
+  {{- $_ := set $networkObservedStatus $networkName (dict
+    "ready" $networkReady
+    "vpcId" $networkVpcId
+    "cidr" (dict
+      "ipv4" $networkCidrIpv4
+      "ipv6Ula" $networkCidrIpv6Ula
+    )
+    "subnets" $networkSubnets
+  ) }}
+{{- end }}
