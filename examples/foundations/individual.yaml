@@ -168,7 +168,7 @@ spec:
             description: Public IPv6 pool (Amazon GUA) for internet-facing workloads
 
   # ---------------------------------------------------------------------------
-  # Network - VPC with IPAM allocation
+  # Network - Dual-stack VPC with IPAM allocation
   # ---------------------------------------------------------------------------
   # For single-account setups, omit `account` to use spec.aws.providerConfig.
   # The network allocates its CIDR from the regional IPAM pool.
@@ -179,9 +179,12 @@ spec:
       ipam:
         ipv4:
           poolRef: ipv4-us-east-1    # Reference pool by name
-          netmaskLength: 16
+          netmaskLength: 16          # /16 = 65k IPs, room to grow
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1  # Private IPv6
+          netmaskLength: 56
       subnetLayout:
-        availabilityZones: [a, b]    # 2 AZs for cost savings
+        availabilityZones: [a]       # Single AZ keeps it simple and cheap
         public:
           enabled: true
           netmaskLength: 24
@@ -189,7 +192,6 @@ spec:
           enabled: true
           netmaskLength: 20
       nat:
-        enabled: true
-        strategy: SingleAz           # Single NAT for cost savings
+        enabled: false               # No NAT - use IPv6 or bastion for egress
       tags:
-        environment: development
+        team: main

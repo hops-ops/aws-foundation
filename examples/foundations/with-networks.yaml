@@ -1,17 +1,23 @@
-# Enterprise Foundation with Networks
-# ====================================
-# Complete multi-account architecture with VPC networks in each account.
-# Extends the enterprise example with:
-# - Network defaults for consistent subnet layout
-# - VPCs in production, staging, and dev accounts using IPAM
-# - Shared services VPC in management account with manual CIDR
+# Multiple Teams: Growing from one team to two
+# =============================================
+# First expansion from individual to multi-team architecture:
+# - AWS Organization for account management
+# - Teams OU with accounts per team
+# - IPAM pools shared to Teams OU
+# - Each team gets their own dual-stack VPC
 #
-# Key features demonstrated:
-# - `networkDefaults` for consistent subnet layout across all networks
-# - `poolRef` to reference IPAM pools by name (resolved to pool ID)
-# - `account` to target member accounts (uses their ProviderConfig)
-# - Omitting `account` targets management account
-# - Override defaults per-network (e.g., fewer AZs for dev)
+# This is the minimal multi-team setup:
+# - 1 AWS Organization
+# - 3 Organizational Units (Teams, Teams/Alpha, Teams/Beta)
+# - 2 Team Accounts
+# - 2 Groups (Administrators, per-team)
+# - IPAM with hierarchical pools
+# - VPCs in each team account
+#
+# Why account-per-team?
+# - Blast radius isolation between teams
+# - Clear cost attribution
+# - Teams own their infrastructure
 
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: Foundation
@@ -34,53 +40,36 @@ spec:
   # ---------------------------------------------------------------------------
   organization:
     awsServiceAccessPrincipals:
+      - iam.amazonaws.com
       - sso.amazonaws.com
-      - ipam.amazonaws.com
-      - ram.amazonaws.com
-
-  organizationalUnits:
-    - path: Security
-    - path: Infrastructure
-    - path: Workloads
-    - path: Workloads/Prod
-    - path: Workloads/Non-Prod
+      - account.amazonaws.com
 
   # ---------------------------------------------------------------------------
-  # Accounts
+  # Organizational Unit Hierarchy
+  # ---------------------------------------------------------------------------
+  organizationalUnits:
+    - path: Teams
+    - path: Teams/Alpha
+    - path: Teams/Beta
+
+  # ---------------------------------------------------------------------------
+  # Team Accounts
   # ---------------------------------------------------------------------------
   accounts:
-    - name: acme-prod
-      email: prod@acme.example.com
-      ou: Workloads/Prod
+    - name: acme-alpha
+      email: aws-alpha@acme.example.com
+      ou: Teams/Alpha
       tags:
-        environment: production
+        team: alpha
 
-    - name: acme-staging
-      email: staging@acme.example.com
-      ou: Workloads/Non-Prod
+    - name: acme-beta
+      email: aws-beta@acme.example.com
+      ou: Teams/Beta
       tags:
-        environment: staging
-
-    - name: acme-dev
-      email: dev@acme.example.com
-      ou: Workloads/Non-Prod
-      tags:
-        environment: development
-
-    - name: acme-shared-services
-      email: shared-services@acme.example.com
-      ou: Infrastructure
-      tags:
-        team: platform
-
-  delegatedAdministrators:
-    - servicePrincipal: sso.amazonaws.com
-      account: acme-shared-services
-    - servicePrincipal: ipam.amazonaws.com
-      account: acme-shared-services
+        team: beta
 
   # ---------------------------------------------------------------------------
-  # Identity Center (minimal for this example)
+  # Identity Center
   # ---------------------------------------------------------------------------
   identityCenter:
     region: us-east-1
@@ -89,7 +78,13 @@ spec:
 
     groups:
       - name: Administrators
-        description: Full administrative access
+        description: Full access to all accounts
+
+      - name: TeamAlpha
+        description: Alpha team members
+
+      - name: TeamBeta
+        description: Beta team members
 
     permissionSets:
       - name: AdministratorAccess
@@ -98,13 +93,30 @@ spec:
         assignToGroups:
           - Administrators
         assignToAccounts:
-          - acme-prod
-          - acme-staging
-          - acme-dev
-          - acme-shared-services
+          - acme-alpha
+          - acme-beta
+
+      # Each team gets access to their account only
+      - name: AlphaAccess
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups:
+          - TeamAlpha
+        assignToAccounts:
+          - acme-alpha
+
+      - name: BetaAccess
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups:
+          - TeamBeta
+        assignToAccounts:
+          - acme-beta
 
   # ---------------------------------------------------------------------------
-  # IPAM - Pools for VPC CIDR allocation
+  # IPAM - Pools shared with Teams OU
   # ---------------------------------------------------------------------------
   ipam:
     region: us-east-1
@@ -113,110 +125,103 @@ spec:
 
     pools:
       ipv4:
-        # Global pool
         - name: ipv4-global
           cidr: 10.0.0.0/8
+          allocations:
+            netmaskLength:
+              default: 12
 
-        # Regional pools
+        # Regional pool shared with all teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
-          locale: us-east-1
-          cidr: 10.0.0.0/10
-
-        # Environment pools
-        - name: ipv4-us-east-1-prod
-          sourcePoolRef: ipv4-us-east-1
           locale: us-east-1
           cidr: 10.0.0.0/12
           allocations:
             netmaskLength:
               default: 16
           ramShareTargets:
-            - ou: Workloads/Prod
+            - ou: Teams
 
-        - name: ipv4-us-east-1-nonprod
-          sourcePoolRef: ipv4-us-east-1
-          locale: us-east-1
-          cidr: 10.16.0.0/12
-          allocations:
-            netmaskLength:
-              default: 16
-          ramShareTargets:
-            - ou: Workloads/Non-Prod
+      ipv6:
+        ula:
+          - name: ipv6-ula-global
+            netmaskLength: 40
+            allocations:
+              netmaskLength:
+                default: 44
+
+          - name: ipv6-ula-us-east-1
+            sourcePoolRef: ipv6-ula-global
+            locale: us-east-1
+            netmaskLength: 44
+            allocations:
+              netmaskLength:
+                default: 56
+            ramShareTargets:
+              - ou: Teams
+
+        gua:
+          - name: ipv6-gua-us-east-1
+            locale: us-east-1
+            netmaskLength: 52
+            publicIpSource: amazon
+            awsService: ec2
+            allocations:
+              netmaskLength:
+                default: 56
+            ramShareTargets:
+              - ou: Teams
 
   # ---------------------------------------------------------------------------
-  # Network Defaults
-  # ---------------------------------------------------------------------------
-  # These settings are inherited by all networks unless overridden.
-  networkDefaults:
-    subnetLayout:
-      availabilityZones: [a, b, c]
-      public:
-        enabled: true
-        netmaskLength: 24
-      private:
-        enabled: true
-        netmaskLength: 20
-    nat:
-      enabled: true
-      strategy: SingleAz
-
-  # ---------------------------------------------------------------------------
-  # Networks - VPCs in each account
+  # Networks - each team gets their own VPC
   # ---------------------------------------------------------------------------
   networks:
-    # Production VPC - HA NAT, all 3 AZs
-    - name: production
-      account: acme-prod
+    # Team Alpha VPC
+    - name: alpha
+      account: acme-alpha
       region: us-east-1
       ipam:
         ipv4:
-          poolRef: ipv4-us-east-1-prod
+          poolRef: ipv4-us-east-1
           netmaskLength: 16
-      nat:
-        strategy: HighlyAvailable    # Override: HA for production
-      tags:
-        environment: production
-        tier: workload
-
-    # Staging VPC - 2 AZs for cost savings
-    - name: staging
-      account: acme-staging
-      region: us-east-1
-      ipam:
-        ipv4:
-          poolRef: ipv4-us-east-1-nonprod
-          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
       subnetLayout:
-        availabilityZones: [a, b]    # Override: only 2 AZs
-      tags:
-        environment: staging
-        tier: workload
-
-    # Dev VPC - minimal, single AZ, no NAT
-    - name: dev
-      account: acme-dev
-      region: us-east-1
-      ipam:
-        ipv4:
-          poolRef: ipv4-us-east-1-nonprod
-          netmaskLength: 18           # Smaller /18 for dev
-      subnetLayout:
-        availabilityZones: [a]        # Override: single AZ
+        availabilityZones: [a, b, c]
+        public:
+          enabled: true
+          netmaskLength: 24
         private:
-          enabled: false              # Override: no private subnets
+          enabled: true
+          netmaskLength: 20
       nat:
-        enabled: false                # Override: no NAT
+        enabled: true
+        strategy: SingleAz
       tags:
-        environment: development
-        tier: workload
+        team: alpha
 
-    # Shared services VPC - management account, manual CIDR
-    - name: shared-services
-      # No account = uses management account (spec.aws.providerConfig)
+    # Team Beta VPC
+    - name: beta
+      account: acme-beta
       region: us-east-1
-      vpc:
-        cidr: "10.32.0.0/16"          # Manual CIDR (not from IPAM)
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1
+          netmaskLength: 56
+      subnetLayout:
+        availabilityZones: [a, b, c]
+        public:
+          enabled: true
+          netmaskLength: 24
+        private:
+          enabled: true
+          netmaskLength: 20
+      nat:
+        enabled: true
+        strategy: SingleAz
       tags:
-        environment: shared
-        tier: infrastructure
+        team: beta

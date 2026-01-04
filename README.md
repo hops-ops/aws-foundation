@@ -279,7 +279,9 @@ spec:
   # Enable AWS Organizations
   organization:
     awsServiceAccessPrincipals:
+      - iam.amazonaws.com
       - sso.amazonaws.com
+      - account.amazonaws.com
 
   # Create OU hierarchy
   organizationalUnits:
@@ -473,7 +475,9 @@ spec:
 
   organization:
     awsServiceAccessPrincipals:
+      - iam.amazonaws.com
       - sso.amazonaws.com
+      - account.amazonaws.com
       - ipam.amazonaws.com
       - ram.amazonaws.com
 
@@ -750,7 +754,9 @@ spec:
   organization:
     externalName: o-abc123xyz
     awsServiceAccessPrincipals:
+      - iam.amazonaws.com
       - sso.amazonaws.com
+      - account.amazonaws.com
 
   # Import existing OUs and accounts
   organizationalUnits:
@@ -990,11 +996,13 @@ status:
 
 ## AWS Service Principals
 
-Enable these in `organization.awsServiceAccessPrincipals` based on your needs:
+Enable these in `organization.awsServiceAccessPrincipals`. The first three are required for most Organizations:
 
 | Service | Principal | Purpose |
 |---------|-----------|---------|
-| Identity Center | `sso.amazonaws.com` | SSO and account assignments |
+| **IAM** | `iam.amazonaws.com` | Cross-account IAM roles (required) |
+| **Identity Center** | `sso.amazonaws.com` | SSO and account assignments (required) |
+| **Account Management** | `account.amazonaws.com` | Account lifecycle management (required) |
 | IPAM | `ipam.amazonaws.com` | Cross-account IP management |
 | RAM | `ram.amazonaws.com` | Resource sharing (IPAM pools) |
 | CloudTrail | `cloudtrail.amazonaws.com` | Centralized audit logs |

@@ -1,0 +1,48 @@
+# Network XRD - Team Beta VPC ready with dual-stack, 3 AZs
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Network
+metadata:
+  name: acme-beta
+  namespace: acme
+  annotations:
+    crossplane.io/composition-resource-name: network-beta
+    gotemplating.fn.crossplane.io/composition-resource-name: network-beta
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  network:
+    vpcId: vpc-0beta1234567890ab
+    cidr:
+      ipv4: 10.1.0.0/16
+      ipv6Ula: fd00:acme:5600:0200::/56
+    subnets:
+      public:
+        - name: public-a
+          id: subnet-0betapuba123456
+          az: us-east-1a
+          cidr: 10.1.0.0/24
+        - name: public-b
+          id: subnet-0betapubb123456
+          az: us-east-1b
+          cidr: 10.1.1.0/24
+        - name: public-c
+          id: subnet-0betapubc123456
+          az: us-east-1c
+          cidr: 10.1.2.0/24
+      private:
+        - name: private-a
+          id: subnet-0betapriva12345
+          az: us-east-1a
+          cidr: 10.1.16.0/20
+        - name: private-b
+          id: subnet-0betaprivb12345
+          az: us-east-1b
+          cidr: 10.1.32.0/20
+        - name: private-c
+          id: subnet-0betaprivc12345
+          az: us-east-1c
+          cidr: 10.1.48.0/20
+  ready: true

@@ -1,4 +1,4 @@
-# Organization XRD - Ready with all OUs and Accounts
+# Organization XRD - Ready with team-based OUs and Accounts
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: Organization
 metadata:
@@ -18,29 +18,29 @@ status:
   rootId: r-abc123
   organizationalUnits:
     Security: ou-abc1-security
-    Infrastructure: ou-abc2-infrastructure
-    Workloads: ou-abc3-workloads
-    Workloads/Prod: ou-abc4-prod
-    Workloads/Non-Prod: ou-abc5-nonprod
-    Sandbox: ou-abc6-sandbox
+    Platform: ou-abc2-platform
+    Teams: ou-abc3-teams
+    Teams/Alpha: ou-abc4-alpha
+    Teams/Beta: ou-abc5-beta
+    Teams/Data: ou-abc6-data
   accounts:
-    - name: acme-security-tooling
+    - name: acme-security
       id: "222222222222"
       ready: true
       adminRoleArn: arn:aws:iam::222222222222:role/OrganizationAccountAccessRole
-    - name: acme-shared-services
+    - name: acme-platform
       id: "333333333333"
       ready: true
       adminRoleArn: arn:aws:iam::333333333333:role/OrganizationAccountAccessRole
-    - name: acme-prod
+    - name: acme-alpha
       id: "444444444444"
       ready: true
       adminRoleArn: arn:aws:iam::444444444444:role/OrganizationAccountAccessRole
-    - name: acme-staging
+    - name: acme-beta
       id: "555555555555"
       ready: true
       adminRoleArn: arn:aws:iam::555555555555:role/OrganizationAccountAccessRole
-    - name: acme-dev
+    - name: acme-data
       id: "666666666666"
       ready: true
       adminRoleArn: arn:aws:iam::666666666666:role/OrganizationAccountAccessRole

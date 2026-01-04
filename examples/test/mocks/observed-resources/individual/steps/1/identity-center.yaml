@@ -1,0 +1,31 @@
+# IdentityCenter XRD - Ready with groups and permission sets
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: IdentityCenter
+metadata:
+  name: my-foundation
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: identity-center
+    gotemplating.fn.crossplane.io/composition-resource-name: identity-center
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  identityStore:
+    groups:
+      - name: Administrators
+        id: 12345678-aaaa-1111-aaaa-111111111111
+      - name: Developers
+        id: 12345678-bbbb-2222-bbbb-222222222222
+      - name: ReadOnly
+        id: 12345678-cccc-3333-cccc-333333333333
+  permissionSets:
+    - name: AdministratorAccess
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-admin12345678
+    - name: PowerUserAccess
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-power12345678
+    - name: ViewOnlyAccess
+      arn: arn:aws:sso:::permissionSet/ssoins-abcdef0123456789/ps-viewo12345678
+  ready: true

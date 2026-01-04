@@ -38,6 +38,10 @@ spec:
   # ---------------------------------------------------------------------------
   organization:
     externalName: o-abc123xyz  # Your existing organization ID
+    awsServiceAccessPrincipals:
+      - iam.amazonaws.com
+      - sso.amazonaws.com
+      - account.amazonaws.com
     # Don't delete the organization when Foundation is removed
     managementPolicies:
       - Create
