@@ -1,0 +1,26 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Computed State: Foundation Core
+# ================================
+# Core foundation state shared by all resources.
+
+{{- $eff := $state.spec.effective }}
+
+# Core foundation state
+{{- $foundation := dict
+  "name" $eff.name
+  "region" $eff.aws.region
+  "providerConfig" (dict
+    "name" $eff.aws.providerConfig
+    "kind" "ProviderConfig"
+  )
+  "k8sProviderConfig" (dict
+    "name" $eff.k8s.providerConfig
+    "kind" "ProviderConfig"
+  )
+  "tags" $eff.tags
+  "managementPolicies" $eff.managementPolicies
+}}
+
+{{- $state = set $state "foundation" $foundation }}

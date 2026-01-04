@@ -12,11 +12,14 @@
 # Uses the Kubernetes provider to create ProviderConfigs as Objects, which allows
 # for proper lifecycle management in e2e testing scenarios.
 
-{{- if $memberAccountsProviderConfigsEnabled }}
-{{- range $account := $accounts }}
+{{- $eff := $state.spec.effective }}
+{{- $memberPCs := $eff.memberAccountsProviderConfigs }}
+
+{{- if $memberPCs.enabled }}
+{{- range $account := $eff.accounts }}
   {{- $accountName := $account.name }}
-  {{- $accountId := get $accountNameToId $accountName }}
-  {{- $accountReady := get $accountNameReady $accountName }}
+  {{- $accountId := get $state.observed.organization.accountNameToId $accountName }}
+  {{- $accountReady := get $state.observed.organization.accountNameReady $accountName }}
   {{- $resourceName := printf "account-pc-%s" $accountName }}
 
   {{- if and $accountReady (ne $accountId "Pending") }}
@@ -24,21 +27,21 @@
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
-  name: {{ $name }}-pc-{{ $accountName }}
+  name: {{ $state.foundation.name }}-pc-{{ $accountName }}
   annotations:
     {{ setResourceNameAnnotation $resourceName }}
 spec:
-  managementPolicies: {{ toJson $memberAccountsProviderConfigsManagementPolicies }}
+  managementPolicies: {{ toJson $memberPCs.managementPolicies }}
   forProvider:
     manifest:
       apiVersion: aws.m.upbound.io/v1beta1
       kind: ProviderConfig
       metadata:
         name: {{ $accountName }}
-        namespace: {{ $memberAccountsProviderConfigsNamespace }}
+        namespace: {{ $memberPCs.namespace }}
         labels:
           hops.ops.com.ai/managed: "true"
-          hops.ops.com.ai/foundation: {{ $name }}
+          hops.ops.com.ai/foundation: {{ $state.foundation.name }}
           hops.ops.com.ai/account-name: {{ $accountName }}
       spec:
         assumeRoleChain:
@@ -46,8 +49,8 @@ spec:
         credentials:
           source: PodIdentity
   providerConfigRef:
-    kind: ProviderConfig
-    name: {{ $k8sProviderConfig }}
+    kind: {{ $state.foundation.k8sProviderConfig.kind }}
+    name: {{ $state.foundation.k8sProviderConfig.name }}
   {{- end }}
 {{- end }}
 {{- end }}

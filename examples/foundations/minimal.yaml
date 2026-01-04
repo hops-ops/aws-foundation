@@ -17,10 +17,3 @@ spec:
 
   tags:
     managed-by: crossplane
-
-  organization:
-    awsServiceAccessPrincipals:
-      - sso.amazonaws.com
-
-  organizationalUnits:
-    - path: Workloads

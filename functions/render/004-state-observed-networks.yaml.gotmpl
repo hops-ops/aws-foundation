@@ -1,0 +1,54 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Observed State: Network XRDs
+# ============================
+# Extracts status from composed Network XRD instances.
+# Networks are keyed by "network-<name>" in observed resources.
+
+{{- $raw := $.observed.resources | default dict }}
+{{- $eff := $state.spec.effective }}
+
+# Build network observations map: name -> status
+{{- $networks := dict }}
+{{- $allNetworksReady := true }}
+
+{{- range $network := ($eff.networks.items | default list) }}
+  {{- $networkName := $network.name }}
+  {{- $networkKey := printf "network-%s" $networkName }}
+  {{- $entry := get $raw $networkKey | default dict }}
+  {{- $resource := $entry.resource | default dict }}
+  {{- $status := $resource.status | default dict }}
+
+  # Check readiness from conditions
+  {{- $ready := false }}
+  {{- range ($status.conditions | default list) }}
+    {{- if and (eq .type "Ready") (eq .status "True") }}
+      {{- $ready = true }}
+    {{- end }}
+  {{- end }}
+
+  {{- if not $ready }}
+    {{- $allNetworksReady = false }}
+  {{- end }}
+
+  # Extract network details from Network XRD status
+  {{- $networkStatus := $status.network | default dict }}
+  {{- $cidrStatus := $networkStatus.cidr | default dict }}
+
+  {{- $networks = set $networks $networkName (dict
+    "ready" $ready
+    "vpcId" ($networkStatus.vpcId | default "Pending")
+    "cidr" (dict
+      "ipv4" ($cidrStatus.ipv4 | default "Pending")
+      "ipv6Ula" ($cidrStatus.ipv6Ula | default "Pending")
+    )
+    "subnets" ($networkStatus.subnets | default dict)
+  ) }}
+{{- end }}
+
+# Set observed.networks slice
+{{- $state = set $state "observed" (merge $state.observed (dict "networks" (dict
+  "byName" $networks
+  "allReady" $allNetworksReady
+))) }}

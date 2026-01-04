@@ -6,29 +6,36 @@
 # Creates the aws-ipam XRD with pools.
 # Foundation pool structure matches IPAM XRD directly - just pass through.
 
-{{- if $ipamEnabled }}
+{{- if $state.foundation.ipam.render }}
+{{- $ipam := $state.foundation.ipam }}
+{{- $pools := $ipam.pools }}
+{{- $ipv4Pools := $pools.ipv4 | default list }}
+{{- $ipv6Pools := $pools.ipv6 | default dict }}
+{{- $ipv6GuaPools := $ipv6Pools.gua | default list }}
+{{- $ipv6UlaPools := $ipv6Pools.ula | default list }}
+{{- $hasAnyPools := or (gt (len $ipv4Pools) 0) (gt (len $ipv6GuaPools) 0) (gt (len $ipv6UlaPools) 0) }}
 ---
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: IPAM
 metadata:
-  name: {{ $name }}-ipam
+  name: {{ $state.foundation.name }}-ipam
   annotations:
     {{ setResourceNameAnnotation "ipam" }}
 spec:
-  managementPolicies: {{ toJson $ipamManagementPolicies }}
+  managementPolicies: {{ toJson $ipam.managementPolicies }}
   providerConfigRef:
-    name: {{ $ipamProviderConfig }}
-    kind: ProviderConfig
-  {{- if $ipamExternalName }}
-  externalName: {{ $ipamExternalName }}
+    name: {{ $ipam.providerConfig.name }}
+    kind: {{ $ipam.providerConfig.kind }}
+  {{- if $ipam.externalName }}
+  externalName: {{ $ipam.externalName }}
   {{- end }}
-  {{- if $ipamForProvider }}
+  {{- if $ipam.forProvider }}
   forProvider:
-    {{- toYaml $ipamForProvider | nindent 4 }}
+    {{- toYaml $ipam.forProvider | nindent 4 }}
   {{- end }}
-  region: {{ $ipamRegion }}
-  {{- if gt (len $ipamOperatingRegions) 0 }}
-  operatingRegions: {{ toJson $ipamOperatingRegions }}
+  region: {{ $ipam.region }}
+  {{- if gt (len $ipam.operatingRegions) 0 }}
+  operatingRegions: {{ toJson $ipam.operatingRegions }}
   {{- end }}
   {{- if $hasAnyPools }}
   pools:

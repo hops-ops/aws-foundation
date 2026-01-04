@@ -1,0 +1,127 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# State Initialization
+# ====================
+# Initialize $state with spec.raw (user input) and spec.effective (with defaults).
+# This is the single source of truth for all template state.
+#
+# $state structure:
+#   spec.raw       - exactly what user provided
+#   spec.effective - with defaults applied (templates use this)
+#   observed       - from $.observed.resources (populated by 01-04 files)
+#   foundation     - computed state for this XRD (populated by 05-09 files)
+
+{{- $xr := getCompositeResource . }}
+{{- $metadata := $xr.metadata }}
+{{- $spec := $xr.spec }}
+{{- $name := $metadata.name }}
+
+# =============================================================================
+# Build spec.effective with defaults
+# =============================================================================
+
+{{- $aws := $spec.aws | default dict }}
+{{- $k8s := $spec.k8s | default dict }}
+{{- $defaultTags := dict "hops" "true" }}
+
+# Organization spec with defaults
+{{- $organization := $spec.organization | default dict }}
+{{- $organizationalUnits := $spec.organizationalUnits | default list }}
+{{- $accounts := $spec.accounts | default list }}
+{{- $delegatedAdministrators := $spec.delegatedAdministrators | default list }}
+
+# Identity Center spec with defaults
+{{- $identityCenter := $spec.identityCenter | default dict }}
+
+# IPAM spec with defaults
+{{- $ipam := $spec.ipam | default dict }}
+{{- $ipamPools := $ipam.pools | default dict }}
+
+# Member accounts provider configs
+{{- $memberAccountsProviderConfigs := $spec.memberAccountsProviderConfigs | default dict }}
+
+# Networks spec with defaults
+{{- $networkDefaults := $spec.networkDefaults | default dict }}
+{{- $networks := $spec.networks | default list }}
+
+# =============================================================================
+# Initialize $state
+# =============================================================================
+
+{{- $state := dict
+  "spec" (dict
+    "raw" $spec
+    "effective" (dict
+      "name" $name
+      "managementPolicies" ($spec.managementPolicies | default (list "*"))
+
+      "aws" (dict
+        "providerConfig" ($aws.providerConfig | default $name | default "default")
+        "region" ($aws.region | default "us-east-1")
+      )
+
+      "k8s" (dict
+        "providerConfig" ($k8s.providerConfig | default $name | default "default")
+      )
+
+      "tags" (merge $defaultTags ($spec.tags | default dict))
+
+      "organization" (dict
+        "enabled" (or (gt (len $organizationalUnits) 0) (gt (len $accounts) 0))
+        "externalName" ($organization.externalName | default "")
+        "managementPolicies" ($organization.managementPolicies | default ($spec.managementPolicies | default (list "*")))
+        "awsServiceAccessPrincipals" ($organization.awsServiceAccessPrincipals | default list)
+      )
+      "organizationalUnits" $organizationalUnits
+      "accounts" $accounts
+      "delegatedAdministrators" $delegatedAdministrators
+
+      "identityCenter" (dict
+        "enabled" ($identityCenter.enabled | default (ne ($identityCenter.identityStoreId | default "") ""))
+        "region" ($identityCenter.region | default ($aws.region | default "us-east-1"))
+        "providerConfig" ($identityCenter.providerConfig | default ($aws.providerConfig | default $name | default "default"))
+        "identityStoreId" ($identityCenter.identityStoreId | default "")
+        "instanceArn" ($identityCenter.instanceArn | default "")
+        "sessionDuration" ($identityCenter.sessionDuration | default "PT1H")
+        "groups" ($identityCenter.groups | default list)
+        "users" ($identityCenter.users | default list)
+        "permissionSets" ($identityCenter.permissionSets | default list)
+      )
+
+      "ipam" (dict
+        "enabled" ($ipam.enabled | default (or
+          (gt (len ($ipamPools.ipv4 | default list)) 0)
+          (gt (len ((($ipamPools.ipv6 | default dict).gua | default list))) 0)
+          (gt (len ((($ipamPools.ipv6 | default dict).ula | default list))) 0)
+        ))
+        "providerConfig" ($ipam.providerConfig | default ($aws.providerConfig | default $name | default "default"))
+        "region" ($ipam.region | default ($aws.region | default "us-east-1"))
+        "operatingRegions" ($ipam.operatingRegions | default (list ($ipam.region | default ($aws.region | default "us-east-1"))))
+        "managementPolicies" ($ipam.managementPolicies | default ($spec.managementPolicies | default (list "*")))
+        "externalName" ($ipam.externalName | default "")
+        "forProvider" ($ipam.forProvider | default dict)
+        "pools" $ipamPools
+      )
+
+      "memberAccountsProviderConfigs" (dict
+        "enabled" ($memberAccountsProviderConfigs.enabled | default true)
+        "managementPolicies" ($memberAccountsProviderConfigs.managementPolicies | default (list "*"))
+        "namespace" ($memberAccountsProviderConfigs.namespace | default "default")
+      )
+
+      "networkDefaults" (dict
+        "subnetLayout" (($networkDefaults).subnetLayout | default dict)
+        "nat" (($networkDefaults).nat | default dict)
+        "flowLogs" (($networkDefaults).flowLogs | default dict)
+        "tags" (($networkDefaults).tags | default dict)
+      )
+      "networks" (dict
+        "enabled" (gt (len $networks) 0)
+        "items" $networks
+      )
+    )
+  )
+  "observed" (dict)
+  "foundation" (dict)
+}}

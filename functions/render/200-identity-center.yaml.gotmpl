@@ -6,30 +6,31 @@
 # Creates the aws-identity-center XRD with groups, users, permission sets, and assignments.
 # Account assignments use resolved account IDs from the Organization XRD status.
 
-{{- if and $identityCenterEnabled $identityStoreId }}
+{{- if $state.foundation.identityCenter.render }}
+{{- $ic := $state.foundation.identityCenter }}
 ---
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: IdentityCenter
 metadata:
-  name: {{ $name }}-identity-center
+  name: {{ $state.foundation.name }}-identity-center
   annotations:
     {{ setResourceNameAnnotation "identity-center" }}
 spec:
-  managementPolicies: {{ toJson $managementPolicies }}
-  organizationName: {{ $name }}
-  region: {{ $identityCenterRegion }}
+  managementPolicies: {{ toJson $state.foundation.managementPolicies }}
+  organizationName: {{ $state.foundation.name }}
+  region: {{ $ic.region }}
   providerConfigRef:
-    name: {{ $identityCenterProviderConfig }}
-    kind: ProviderConfig
-  identityStoreId: {{ $identityStoreId }}
-  {{- if $identityCenterInstanceArn }}
+    name: {{ $ic.providerConfig.name }}
+    kind: {{ $ic.providerConfig.kind }}
+  identityStoreId: {{ $ic.identityStoreId }}
+  {{- if $ic.instanceArn }}
   identityCenter:
-    instanceArn: {{ $identityCenterInstanceArn }}
-    sessionDuration: {{ $identityCenterSessionDuration }}
+    instanceArn: {{ $ic.instanceArn }}
+    sessionDuration: {{ $ic.sessionDuration }}
   {{- end }}
-  {{- if gt (len $identityCenterGroups) 0 }}
+  {{- if gt (len $ic.groups) 0 }}
   groups:
-    {{- range $group := $identityCenterGroups }}
+    {{- range $group := $ic.groups }}
     - name: {{ $group.name }}
       {{- if $group.displayName }}
       displayName: {{ $group.displayName }}
@@ -45,9 +46,9 @@ spec:
       {{- end }}
     {{- end }}
   {{- end }}
-  {{- if gt (len $identityCenterUsers) 0 }}
+  {{- if gt (len $ic.users) 0 }}
   users:
-    {{- range $user := $identityCenterUsers }}
+    {{- range $user := $ic.users }}
     - username: {{ $user.username }}
       email: {{ $user.email }}
       {{- if $user.firstName }}
@@ -70,9 +71,9 @@ spec:
       {{- end }}
     {{- end }}
   {{- end }}
-  {{- if gt (len $identityCenterPermissionSets) 0 }}
+  {{- if gt (len $ic.permissionSets) 0 }}
   permissionSets:
-    {{- range $ps := $identityCenterPermissionSets }}
+    {{- range $ps := $ic.permissionSets }}
     - name: {{ $ps.name }}
       {{- if $ps.description }}
       description: {{ $ps.description }}
@@ -102,27 +103,17 @@ spec:
       {{- if $ps.managementPolicies }}
       managementPolicies: {{ toJson $ps.managementPolicies }}
       {{- end }}
-      {{- $psAssignToAccounts := $ps.assignToAccounts | default (list) }}
-      {{- $psAssignToGroups := $ps.assignToGroups | default (list) }}
-      {{- $psAssignToUsers := $ps.assignToUsers | default (list) }}
-      {{- if or (gt (len $psAssignToAccounts) 0) (gt (len $psAssignToGroups) 0) (gt (len $psAssignToUsers) 0) }}
-      # Resolve account names to IDs for assignments
-      {{- $resolvedAccountIds := list }}
-      {{- range $accountName := $psAssignToAccounts }}
-        {{- $accountId := get $accountNameToId $accountName }}
-        {{- if and $accountId (ne $accountId "Pending") }}
-          {{- $resolvedAccountIds = append $resolvedAccountIds $accountId }}
-        {{- end }}
-      {{- end }}
-      {{- if gt (len $resolvedAccountIds) 0 }}
-      assignToAccounts: {{ toJson $resolvedAccountIds }}
+      {{- $psAssignToAccounts := $ps.assignToAccounts | default list }}
+      {{- $psAssignToGroups := $ps.assignToGroups | default list }}
+      {{- $psAssignToUsers := $ps.assignToUsers | default list }}
+      {{- if gt (len $psAssignToAccounts) 0 }}
+      assignToAccounts: {{ toJson $psAssignToAccounts }}
       {{- end }}
       {{- if gt (len $psAssignToGroups) 0 }}
       assignToGroups: {{ toJson $psAssignToGroups }}
       {{- end }}
       {{- if gt (len $psAssignToUsers) 0 }}
       assignToUsers: {{ toJson $psAssignToUsers }}
-      {{- end }}
       {{- end }}
     {{- end }}
   {{- end }}

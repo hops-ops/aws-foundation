@@ -1,0 +1,58 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Computed State: Organization
+# =============================
+# Organization computed state with render flag.
+
+{{- $eff := $state.spec.effective }}
+
+# Determine if organization should render
+# Enabled if: has OUs, has accounts, or has delegated admins
+{{- $ous := $eff.organizationalUnits }}
+{{- $accounts := $eff.accounts }}
+{{- $delegatedAdmins := $eff.delegatedAdministrators }}
+{{- $render := or (gt (len $ous) 0) (gt (len $accounts) 0) (gt (len $delegatedAdmins) 0) }}
+
+# Build account lookup: name -> config
+{{- $accountsByName := dict }}
+{{- range $accounts }}
+  {{- $accountsByName = set $accountsByName .name . }}
+{{- end }}
+
+# Build OUs with nested accounts for Organization XRD
+{{- $ousWithAccounts := list }}
+{{- range $ou := $ous }}
+  {{- $ouAccounts := list }}
+  {{- range $account := $accounts }}
+    {{- if eq ($account.ou | default "") $ou.path }}
+      {{- $ouAccounts = append $ouAccounts $account }}
+    {{- end }}
+  {{- end }}
+  {{- $ousWithAccounts = append $ousWithAccounts (merge $ou (dict "accounts" $ouAccounts)) }}
+{{- end }}
+
+# Build group lookup: name -> config
+{{- $groupsByName := dict }}
+{{- range ($eff.identityCenter.groups) }}
+  {{- $groupsByName = set $groupsByName .name . }}
+{{- end }}
+
+# Build user lookup: username -> config
+{{- $usersByName := dict }}
+{{- range ($eff.identityCenter.users) }}
+  {{- $usersByName = set $usersByName .username . }}
+{{- end }}
+
+# Set foundation.organization slice
+{{- $org := dict
+  "render" $render
+  "managementPolicies" $eff.organization.managementPolicies
+  "externalName" $eff.organization.externalName
+  "awsServiceAccessPrincipals" $eff.organization.awsServiceAccessPrincipals
+  "accountsByName" $accountsByName
+  "ousWithAccounts" $ousWithAccounts
+  "groupsByName" $groupsByName
+  "usersByName" $usersByName
+}}
+{{- $state = set $state "foundation" (merge $state.foundation (dict "organization" $org)) }}

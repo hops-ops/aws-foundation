@@ -584,3 +584,18 @@ spec:
                     subnets:
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
+              spec:
+                type: object
+                description: |
+                  Debugging output showing raw input vs effective config.
+                  Helps identify where defaults are applied or misconfigurations exist.
+                x-kubernetes-preserve-unknown-fields: true
+                properties:
+                  raw:
+                    type: object
+                    description: User's original spec (before defaults applied).
+                    x-kubernetes-preserve-unknown-fields: true
+                  effective:
+                    type: object
+                    description: Spec with all defaults applied (what templates actually use).
+                    x-kubernetes-preserve-unknown-fields: true
