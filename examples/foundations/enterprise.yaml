@@ -30,9 +30,11 @@ metadata:
 spec:
   managementPolicies: ["*"]
 
-  aws:
-    providerConfig: aws-management-account
-    region: us-east-1
+  providerConfigRef:
+    name: aws-management-account
+    kind: ProviderConfig
+
+  region: us-east-1
 
   tags:
     organization: acme

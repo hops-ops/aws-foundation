@@ -38,10 +38,7 @@
 {{- $identityCenter := dict
   "render" $render
   "region" $ic.region
-  "providerConfig" (dict
-    "name" $ic.providerConfig
-    "kind" "ProviderConfig"
-  )
+  "providerConfig" $ic.providerConfigRef
   "identityStoreId" $ic.identityStoreId
   "instanceArn" $ic.instanceArn
   "sessionDuration" $ic.sessionDuration

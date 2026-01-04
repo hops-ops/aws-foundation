@@ -11,9 +11,11 @@ metadata:
 spec:
   managementPolicies: ["*"]
 
-  aws:
-    providerConfig: default
-    region: us-east-1
+  providerConfigRef:
+    name: default
+    kind: ProviderConfig
+
+  region: us-east-1
 
   tags:
     managed-by: crossplane

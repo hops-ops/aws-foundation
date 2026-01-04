@@ -25,7 +25,7 @@
   {{- if $networkAccount }}
     {{- $networkProviderConfig = $networkAccount }}
   {{- else }}
-    {{- $networkProviderConfig = $eff.aws.providerConfig }}
+    {{- $networkProviderConfig = $eff.providerConfigRef.name }}
   {{- end }}
 
   # Merge subnet layout: defaults -> network-specific

@@ -25,9 +25,11 @@ metadata:
 spec:
   managementPolicies: ["*"]
 
-  aws:
-    providerConfig: aws-management
-    region: us-east-1
+  providerConfigRef:
+    name: aws-management
+    kind: ProviderConfig
+
+  region: us-east-1
 
   tags:
     managed-by: crossplane

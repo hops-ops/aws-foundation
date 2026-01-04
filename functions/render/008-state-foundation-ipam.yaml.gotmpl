@@ -15,10 +15,7 @@
 {{- $ipam := dict
   "render" $render
   "region" $ipamSpec.region
-  "providerConfig" (dict
-    "name" $ipamSpec.providerConfig
-    "kind" "ProviderConfig"
-  )
+  "providerConfig" $ipamSpec.providerConfigRef
   "operatingRegions" $ipamSpec.operatingRegions
   "managementPolicies" $ipamSpec.managementPolicies
   "externalName" $ipamSpec.externalName

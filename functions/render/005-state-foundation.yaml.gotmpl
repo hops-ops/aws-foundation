@@ -10,15 +10,9 @@
 # Core foundation state
 {{- $foundation := dict
   "name" $eff.name
-  "region" $eff.aws.region
-  "providerConfig" (dict
-    "name" $eff.aws.providerConfig
-    "kind" "ProviderConfig"
-  )
-  "k8sProviderConfig" (dict
-    "name" $eff.k8s.providerConfig
-    "kind" "ProviderConfig"
-  )
+  "region" $eff.region
+  "providerConfig" $eff.providerConfigRef
+  "k8sProviderConfig" $eff.kubernetesProviderConfigRef
   "tags" $eff.tags
   "managementPolicies" $eff.managementPolicies
 }}

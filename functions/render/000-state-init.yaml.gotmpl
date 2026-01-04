@@ -21,8 +21,12 @@
 # Build spec.effective with defaults
 # =============================================================================
 
-{{- $aws := $spec.aws | default dict }}
-{{- $k8s := $spec.k8s | default dict }}
+# Provider config refs
+{{- $awsProviderConfigRef := $spec.providerConfigRef | default dict }}
+{{- $k8sProviderConfigRef := $spec.kubernetesProviderConfigRef | default dict }}
+
+# Region at spec level
+{{- $region := $spec.region | default "us-east-1" }}
 {{- $defaultTags := dict "hops" "true" }}
 
 # Organization spec with defaults
@@ -56,14 +60,16 @@
       "name" $name
       "managementPolicies" ($spec.managementPolicies | default (list "*"))
 
-      "aws" (dict
-        "providerConfig" ($aws.providerConfig | default $name | default "default")
-        "region" ($aws.region | default "us-east-1")
+      "providerConfigRef" (dict
+        "name" ($awsProviderConfigRef.name | default $name | default "default")
+        "kind" ($awsProviderConfigRef.kind | default "ProviderConfig")
+      )
+      "kubernetesProviderConfigRef" (dict
+        "name" ($k8sProviderConfigRef.name | default $name | default "default")
+        "kind" ($k8sProviderConfigRef.kind | default "ProviderConfig")
       )
 
-      "k8s" (dict
-        "providerConfig" ($k8s.providerConfig | default $name | default "default")
-      )
+      "region" $region
 
       "tags" (merge $defaultTags ($spec.tags | default dict))
 
@@ -79,8 +85,11 @@
 
       "identityCenter" (dict
         "enabled" ($identityCenter.enabled | default (ne ($identityCenter.identityStoreId | default "") ""))
-        "region" ($identityCenter.region | default ($aws.region | default "us-east-1"))
-        "providerConfig" ($identityCenter.providerConfig | default ($aws.providerConfig | default $name | default "default"))
+        "region" ($identityCenter.region | default $region)
+        "providerConfigRef" (dict
+          "name" ((($identityCenter.providerConfigRef | default dict).name) | default ($awsProviderConfigRef.name | default $name | default "default"))
+          "kind" ((($identityCenter.providerConfigRef | default dict).kind) | default ($awsProviderConfigRef.kind | default "ProviderConfig"))
+        )
         "identityStoreId" ($identityCenter.identityStoreId | default "")
         "instanceArn" ($identityCenter.instanceArn | default "")
         "sessionDuration" ($identityCenter.sessionDuration | default "PT1H")
@@ -95,9 +104,12 @@
           (gt (len ((($ipamPools.ipv6 | default dict).gua | default list))) 0)
           (gt (len ((($ipamPools.ipv6 | default dict).ula | default list))) 0)
         ))
-        "providerConfig" ($ipam.providerConfig | default ($aws.providerConfig | default $name | default "default"))
-        "region" ($ipam.region | default ($aws.region | default "us-east-1"))
-        "operatingRegions" ($ipam.operatingRegions | default (list ($ipam.region | default ($aws.region | default "us-east-1"))))
+        "providerConfigRef" (dict
+          "name" ((($ipam.providerConfigRef | default dict).name) | default ($awsProviderConfigRef.name | default $name | default "default"))
+          "kind" ((($ipam.providerConfigRef | default dict).kind) | default ($awsProviderConfigRef.kind | default "ProviderConfig"))
+        )
+        "region" ($ipam.region | default $region)
+        "operatingRegions" ($ipam.operatingRegions | default (list ($ipam.region | default $region)))
         "managementPolicies" ($ipam.managementPolicies | default ($spec.managementPolicies | default (list "*")))
         "externalName" ($ipam.externalName | default "")
         "forProvider" ($ipam.forProvider | default dict)
