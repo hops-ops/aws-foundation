@@ -10,12 +10,11 @@ Foundation is a unified API that composes four specialized XRDs:
 |-----------|---------|---------------|
 | **[Organization](../aws-organization)** | AWS Organization, OUs, accounts, delegated administrators | Consolidated billing, SCPs, account factory |
 | **[Identity Center](../aws-identity-center)** | SSO groups, users, permission sets, account assignments | Single sign-on, time-limited credentials, federation-ready |
-| **[IPAM](../aws-ipam)** | IP address pools, automatic allocation, RAM sharing | No overlapping CIDRs, dual-stack IPv6, compliance tracking |
+| **[IPAM](../aws-ipam)** | IP address pools, automatic allocation | No overlapping CIDRs, dual-stack IPv6, compliance tracking |
 | **[Network](../aws-network)** | VPCs, subnets, route tables, NAT gateways | Per-account VPCs with IPAM allocation, consistent layouts |
 
 **Why one resource?**
 - Account names are referenced everywhere and automatically resolved to AWS account IDs
-- OU paths are resolved for IPAM RAM sharing
 - Each account gets a ProviderConfig for cross-account access via `OrganizationAccountAccessRole`
 - IPAM pool names are resolved to pool IDs for network CIDR allocation
 - Networks automatically target the correct account via their ProviderConfig
@@ -247,7 +246,7 @@ You're growing. A second team needs their own account and VPC.
 - AWS Organization to create and manage accounts
 - Organizational Units (OUs) for grouping team accounts
 - Permission sets assigned per team
-- IPAM pools shared across team accounts
+- IPAM pools for automatic IP allocation
 
 **Why Organizations?**
 - Consolidated billing
@@ -343,7 +342,7 @@ spec:
             netmaskLength:
               default: 12
 
-        # Regional pool shared with all teams
+        # Regional pool for teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
           locale: us-east-1
@@ -351,8 +350,6 @@ spec:
           allocations:
             netmaskLength:
               default: 16
-          ramShareTargets:
-            - ou: Teams
 
       ipv6:
         ula:
@@ -369,8 +366,6 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
 
         gua:
           - name: ipv6-gua-us-east-1
@@ -381,8 +376,6 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
 
   # ═══════════════════════════════════════════════════════════════════
   # Networks - each team gets their own VPC
@@ -443,7 +436,7 @@ You have multiple product teams, compliance requirements, and need centralized s
 - Account-per-team model with dedicated VPCs
 - Dedicated accounts for security tooling, shared services, logging
 - Delegated administration (Identity Center and IPAM managed from platform, not management account)
-- Separate IPAM pools per team with RAM sharing
+- Separate IPAM pools per team
 - Team-specific permission sets
 
 **Why account-per-team?**
@@ -479,7 +472,6 @@ spec:
       - sso.amazonaws.com
       - account.amazonaws.com
       - ipam.amazonaws.com
-      - ram.amazonaws.com
 
   organizationalUnits:
     - path: Security
@@ -579,7 +571,7 @@ spec:
 
     pools:
       # ═══════════════════════════════════════════════════════════
-      # IPv4 Hierarchy: Global → Regional → shared with Teams OU
+      # IPv4 Hierarchy: Global → Regional
       # ═══════════════════════════════════════════════════════════
       ipv4:
         # Global pool - top of hierarchy
@@ -589,7 +581,7 @@ spec:
             netmaskLength:
               default: 12  # Carve /12 per region
 
-        # Regional pool - shared with all teams
+        # Regional pool for teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
           locale: us-east-1
@@ -597,8 +589,6 @@ spec:
           allocations:
             netmaskLength:
               default: 16
-          ramShareTargets:
-            - ou: Teams              # All team accounts can allocate
 
         # Platform pool
         - name: ipv4-us-east-1-platform
@@ -608,11 +598,9 @@ spec:
           allocations:
             netmaskLength:
               default: 20
-          ramShareTargets:
-            - account: acme-platform
 
       # ═══════════════════════════════════════════════════════════
-      # IPv6 Pools - shared with Teams OU
+      # IPv6 Pools - ULA and GUA
       # ═══════════════════════════════════════════════════════════
       ipv6:
         ula:
@@ -629,8 +617,6 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
 
         gua:
           - name: ipv6-gua-us-east-1
@@ -641,8 +627,6 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
 
   # ═══════════════════════════════════════════════════════════════════
   # Network Defaults - consistent subnet layouts
@@ -1004,7 +988,6 @@ Enable these in `organization.awsServiceAccessPrincipals`. The first three are r
 | **Identity Center** | `sso.amazonaws.com` | SSO and account assignments (required) |
 | **Account Management** | `account.amazonaws.com` | Account lifecycle management (required) |
 | IPAM | `ipam.amazonaws.com` | Cross-account IP management |
-| RAM | `ram.amazonaws.com` | Resource sharing (IPAM pools) |
 | CloudTrail | `cloudtrail.amazonaws.com` | Centralized audit logs |
 | GuardDuty | `guardduty.amazonaws.com` | Threat detection |
 | Security Hub | `securityhub.amazonaws.com` | Security findings |
@@ -1015,7 +998,7 @@ Enable these in `organization.awsServiceAccessPrincipals`. The first three are r
 **Foundation sub-modules:**
 - [aws-organization](../aws-organization/README.md) - Organization, OUs, accounts, delegated administrators
 - [aws-identity-center](../aws-identity-center/README.md) - SSO groups, users, permission sets, federation
-- [aws-ipam](../aws-ipam/README.md) - IP pools, dual-stack IPv6, RAM sharing
+- [aws-ipam](../aws-ipam/README.md) - IP pools, dual-stack IPv6
 - [aws-network](../aws-network/README.md) - VPCs, subnets, route tables, NAT gateways
 
 **AWS documentation:**

@@ -40,11 +40,10 @@ spec:
     Foundation creates a complete AWS foundation in a single resource by composing:
     - **Organization XRD** - AWS Organization with OUs and accounts
     - **IdentityCenter XRD** - Groups, users, permission sets, account assignments
-    - **IPAM XRD** - IP pools for VPC management with RAM sharing
+    - **IPAM XRD** - IP pools for VPC management
 
     Key features:
     - Account names can be referenced everywhere and are automatically resolved to AWS account IDs
-    - OU paths are automatically resolved for IPAM RAM sharing
     - Each account gets a ProviderConfig using OrganizationAccountAccessRole
 
     Example:
@@ -64,10 +63,9 @@ spec:
       ipam:
         delegatedAdminAccount: shared-services  # Reference by name!
         pools:
-          - name: prod-vpc
-            cidr: 10.0.0.0/16
-            ramShareTargets:
-              - ou: Workloads/Prod  # Reference by path!
+          ipv4:
+            - name: prod-vpc
+              cidr: 10.0.0.0/16
     ```
   repository: ghcr.io/hops-ops/configuration-aws-foundation
   source: github.com/hops-ops/configuration-aws-foundation

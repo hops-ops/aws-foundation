@@ -41,7 +41,7 @@ Foundation XR
 ├── IdentityCenter XRD (optional)
 │   └── Creates: Groups, Users, Permission Sets, Account Assignments
 ├── IPAM XRD (optional)
-│   └── Creates: IPAM, Pools, RAM Shares
+│   └── Creates: IPAM, Pools
 └── Account ProviderConfigs
     └── Creates: ProviderConfig per account (assumes OrganizationAccountAccessRole)
 ```
@@ -58,8 +58,6 @@ The Foundation XRD uses `x-kubernetes-preserve-unknown-fields: true` to pass thr
 Foundation resolves account and OU names to IDs for downstream resources:
 - `spec.identityCenter.permissionSets[].assignToAccounts` - account names resolved to IDs
 - `spec.ipam.delegatedAdminAccount` - account name resolved to ID
-- `spec.ipam.pools[].ramShareTargets[].ou` - OU path resolved to ID
-- `spec.ipam.pools[].ramShareTargets[].account` - account name resolved to ID
 
 ### Observed-State Gating
 The composition waits for Organization to be Ready before creating resources that depend on account/OU IDs:
