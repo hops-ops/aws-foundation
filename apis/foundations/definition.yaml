@@ -35,6 +35,13 @@ spec:
                   enum: ["*", Create, Observe, Update, Delete, LateInitialize]
                 default: ["*"]
 
+              labels:
+                type: object
+                description: Custom labels applied to all managed resources. Merged with default labels (hops.ops.com.ai/managed, hops.ops.com.ai/<kind>).
+                additionalProperties:
+                  type: string
+                x-kubernetes-preserve-unknown-fields: true
+
               providerConfigRef:
                 type: object
                 description: AWS provider config reference. Falls back to metadata.name.
@@ -539,6 +546,106 @@ spec:
                         type: string
                         enum: ["*", Create, Observe, Update, Delete, LateInitialize]
 
+              # =============================================================================
+              # RAM Shares - Resource Access Manager shares
+              # =============================================================================
+              ramShares:
+                type: array
+                description: |
+                  RAM resource shares to create. Each share can include multiple resources
+                  and principals. Useful for sharing IPAM pools, Transit Gateways, subnets,
+                  and other resources across accounts in the organization.
+                items:
+                  type: object
+                  required:
+                  - name
+                  properties:
+                    name:
+                      type: string
+                      description: |
+                        Share name. Becomes the RAMShare metadata.name (prefixed with Foundation name).
+                    region:
+                      type: string
+                      description: AWS region for this RAM share. Defaults to spec.region.
+                    allowExternalPrincipals:
+                      type: boolean
+                      description: Allow principals outside the organization. Defaults to false.
+                      default: false
+                    permissionArns:
+                      type: array
+                      description: RAM permission ARNs to use for custom permissions.
+                      items:
+                        type: string
+                    resources:
+                      type: array
+                      description: |
+                        Resources to share. Can reference IPAM pools by name (poolRef) or
+                        provide direct ARNs. Resource names are used for tracking.
+                      items:
+                        type: object
+                        required:
+                        - name
+                        properties:
+                          name:
+                            type: string
+                            description: Resource name for tracking in status.
+                          arn:
+                            type: string
+                            description: Direct resource ARN to share.
+                          ipamPoolRef:
+                            type: string
+                            description: |
+                              Reference to IPAM pool by name from spec.ipam.pools.
+                              Resolved to pool ARN from IPAM status.
+                    principals:
+                      type: array
+                      description: |
+                        Principals to share with. Can be accounts, OUs, or the organization.
+                        Account names from spec.accounts[] are automatically resolved to account IDs.
+                      items:
+                        type: object
+                        required:
+                        - name
+                        - type
+                        properties:
+                          name:
+                            type: string
+                            description: Principal name for tracking in status.
+                          type:
+                            type: string
+                            description: Principal type.
+                            enum: [account, organization, organizationalUnit]
+                          id:
+                            type: string
+                            description: |
+                              Direct principal ID (account ID, org ID, or OU ID).
+                              For accounts, can also use account name from spec.accounts[].
+                          accountRef:
+                            type: string
+                            description: |
+                              Reference to account by name from spec.accounts[].
+                              Resolved to account ID from organization status.
+                          arn:
+                            type: string
+                            description: |
+                              Direct principal ARN (for organization or OU).
+                              Required for organization and organizationalUnit types if not using ouRef.
+                          ouRef:
+                            type: string
+                            description: |
+                              Reference to OU by path from spec.organizationalUnits[].
+                              Resolved to OU ARN from organization status.
+                    tags:
+                      type: object
+                      description: Additional tags for this RAM share.
+                      x-kubernetes-preserve-unknown-fields: true
+                    managementPolicies:
+                      type: array
+                      description: Override management policies for this RAM share.
+                      items:
+                        type: string
+                        enum: ["*", Create, Observe, Update, Delete, LateInitialize]
+
           status:
             type: object
             description: Observed state for Foundation.
@@ -593,6 +700,42 @@ spec:
                     subnets:
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
+              ramShares:
+                type: array
+                description: RAM share status.
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    ready:
+                      type: boolean
+                    shareArn:
+                      type: string
+                    shareId:
+                      type: string
+                    resources:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          arn:
+                            type: string
+                          status:
+                            type: string
+                    principals:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          principal:
+                            type: string
+                          status:
+                            type: string
               spec:
                 type: object
                 description: |

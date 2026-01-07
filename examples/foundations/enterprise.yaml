@@ -4,7 +4,7 @@
 # - Teams OU with dedicated accounts per team
 # - Security and Platform accounts for centralized services
 # - Delegated administration (SSO, IPAM from platform account)
-# - IPAM pools shared via RAM to Teams OU
+# - IPAM with hierarchical IP pools
 # - Each team gets their own VPC with dual-stack networking
 #
 # This example creates:
@@ -14,7 +14,7 @@
 # - 2 Delegated Administrators (SSO, IPAM to platform)
 # - 5 Identity Store Groups (per-team + admins + security)
 # - Team-specific permission sets
-# - IPAM with hierarchical pools shared to Teams OU
+# - IPAM with hierarchical pools
 # - VPCs in each team account
 #
 # Why account-per-team?
@@ -49,7 +49,6 @@ spec:
       - sso.amazonaws.com
       - account.amazonaws.com
       - ipam.amazonaws.com
-      - ram.amazonaws.com
 
   # ---------------------------------------------------------------------------
   # Organizational Unit Hierarchy (Team-based)
@@ -203,7 +202,7 @@ spec:
           - acme-data
 
   # ---------------------------------------------------------------------------
-  # IPAM - Pools shared with Teams OU
+  # IPAM - Hierarchical IP pools
   # ---------------------------------------------------------------------------
   ipam:
     delegatedAdminAccount: acme-platform
@@ -213,7 +212,7 @@ spec:
 
     pools:
       # ==========================================================================
-      # IPv4 Pools - Global → Regional → shared with Teams OU
+      # IPv4 Pools - Global → Regional hierarchy
       # ==========================================================================
       ipv4:
         # Global pool - top of hierarchy
@@ -224,7 +223,7 @@ spec:
               default: 12
           description: Global IPv4 pool
 
-        # Regional pool - shared with all teams
+        # Regional pool for teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
           locale: us-east-1
@@ -232,9 +231,7 @@ spec:
           allocations:
             netmaskLength:
               default: 16
-          ramShareTargets:
-            - ou: Teams
-          description: Regional IPv4 pool shared with Teams OU
+          description: Regional IPv4 pool for us-east-1
 
         # Platform pool
         - name: ipv4-us-east-1-platform
@@ -244,12 +241,10 @@ spec:
           allocations:
             netmaskLength:
               default: 20
-          ramShareTargets:
-            - account: acme-platform
           description: Platform IPv4 pool
 
       # ==========================================================================
-      # IPv6 Pools - shared with Teams OU
+      # IPv6 Pools - ULA and GUA
       # ==========================================================================
       ipv6:
         ula:
@@ -267,16 +262,12 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
-            description: Regional ULA IPv6 shared with Teams OU
+            description: Regional ULA IPv6 pool for us-east-1
 
           - name: ipv6-ula-us-east-1-platform
             sourcePoolRef: ipv6-ula-global
             locale: us-east-1
             netmaskLength: 56
-            ramShareTargets:
-              - account: acme-platform
             description: Platform ULA IPv6 pool
 
         gua:
@@ -288,9 +279,7 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
-            description: Public IPv6 pool shared with Teams OU
+            description: Public IPv6 pool for us-east-1
 
   # ---------------------------------------------------------------------------
   # Network Defaults

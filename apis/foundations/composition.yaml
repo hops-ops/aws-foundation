@@ -9,7 +9,7 @@ spec:
   mode: Pipeline
   pipeline:
   - functionRef:
-      name: hops-ops-configuration-aws-foundationrender
+      name: hops-ops-aws-foundationrender
     step: render
   - functionRef:
       name: crossplane-contrib-function-auto-ready

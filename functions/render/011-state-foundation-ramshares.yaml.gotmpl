@@ -1,0 +1,160 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Computed State: RAM Shares
+# ==========================
+# RAM Shares computed state with render flags and resolved references.
+# Resolves IPAM pool refs to ARNs and account refs to IDs.
+
+{{- $eff := $state.spec.effective }}
+{{- $ramShares := $eff.ramShares.items | default list }}
+{{- $tags := $eff.tags }}
+
+# RAM Shares render flag from spec.effective.ramShares.enabled
+{{- $render := $eff.ramShares.enabled }}
+
+# Build processed RAM shares list with resolved values
+{{- $processedRamShares := list }}
+{{- range $share := $ramShares }}
+  {{- $shareName := $share.name }}
+  {{- $shareRegion := $share.region | default $eff.region }}
+  {{- $allowExternalPrincipals := $share.allowExternalPrincipals | default false }}
+  {{- $permissionArns := $share.permissionArns | default list }}
+
+  # Merge tags: spec.tags -> share-specific
+  {{- $mergedTags := merge ($share.tags | default dict) $tags }}
+
+  # ==========================================================================
+  # Process resources - resolve ipamPoolRef to ARN
+  # ==========================================================================
+  {{- $processedResources := list }}
+  {{- $allResourcesResolved := true }}
+  {{- range $resource := ($share.resources | default list) }}
+    {{- $resourceName := $resource.name }}
+    {{- $resourceArn := $resource.arn | default "" }}
+    {{- $ipamPoolRef := $resource.ipamPoolRef | default "" }}
+
+    # If ipamPoolRef is set, resolve from IPAM observed state
+    {{- if ne $ipamPoolRef "" }}
+      {{- $poolArn := get $state.observed.ipam.poolArnByName $ipamPoolRef | default "" }}
+      {{- if and $poolArn (ne $poolArn "Pending") }}
+        {{- $resourceArn = $poolArn }}
+      {{- else }}
+        {{- $allResourcesResolved = false }}
+      {{- end }}
+    {{- end }}
+
+    # Check if resource is resolved
+    {{- if eq $resourceArn "" }}
+      {{- $allResourcesResolved = false }}
+    {{- end }}
+
+    {{- $processedResources = append $processedResources (dict
+      "name" $resourceName
+      "arn" $resourceArn
+      "ipamPoolRef" $ipamPoolRef
+    ) }}
+  {{- end }}
+
+  # ==========================================================================
+  # Process principals - resolve accountRef to ID, ouRef to ARN
+  # ==========================================================================
+  {{- $processedPrincipals := list }}
+  {{- $allPrincipalsResolved := true }}
+  {{- range $principal := ($share.principals | default list) }}
+    {{- $principalName := $principal.name }}
+    {{- $principalType := $principal.type }}
+    {{- $principalId := $principal.id | default "" }}
+    {{- $principalArn := $principal.arn | default "" }}
+    {{- $accountRef := $principal.accountRef | default "" }}
+    {{- $ouRef := $principal.ouRef | default "" }}
+
+    # For account type: resolve accountRef or direct id
+    {{- if eq $principalType "account" }}
+      {{- if ne $accountRef "" }}
+        # Resolve account ref to ID from organization observed state
+        {{- $resolvedId := get $state.observed.organization.accountNameToId $accountRef | default "" }}
+        {{- if and $resolvedId (ne $resolvedId "Pending") }}
+          {{- $principalId = $resolvedId }}
+        {{- else }}
+          {{- $allPrincipalsResolved = false }}
+        {{- end }}
+      {{- end }}
+      {{- if eq $principalId "" }}
+        {{- $allPrincipalsResolved = false }}
+      {{- end }}
+    {{- end }}
+
+    # For organizationalUnit type: resolve ouRef to ARN
+    {{- if eq $principalType "organizationalUnit" }}
+      {{- if ne $ouRef "" }}
+        # Resolve OU ref to ARN from organization observed state
+        {{- $ouId := get $state.observed.organization.ouPathToId $ouRef | default "" }}
+        {{- if and $ouId (ne $ouId "Pending") }}
+          # Build OU ARN from org ID and OU ID
+          {{- $orgId := $state.observed.organization.id | default "" }}
+          {{- $managementAccountId := $state.observed.organization.managementAccountId | default "" }}
+          {{- if and (ne $orgId "") (ne $managementAccountId "") }}
+            {{- $principalArn = printf "arn:aws:organizations::%s:ou/%s/%s" $managementAccountId $orgId $ouId }}
+          {{- else }}
+            {{- $allPrincipalsResolved = false }}
+          {{- end }}
+        {{- else }}
+          {{- $allPrincipalsResolved = false }}
+        {{- end }}
+      {{- end }}
+      {{- if eq $principalArn "" }}
+        {{- $allPrincipalsResolved = false }}
+      {{- end }}
+    {{- end }}
+
+    # For organization type: need ARN directly
+    {{- if eq $principalType "organization" }}
+      {{- if eq $principalArn "" }}
+        # Try to build from observed org state
+        {{- $orgId := $state.observed.organization.id | default "" }}
+        {{- $managementAccountId := $state.observed.organization.managementAccountId | default "" }}
+        {{- if and (ne $orgId "") (ne $managementAccountId "") }}
+          {{- $principalArn = printf "arn:aws:organizations::%s:organization/%s" $managementAccountId $orgId }}
+        {{- else }}
+          {{- $allPrincipalsResolved = false }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+
+    {{- $processedPrincipals = append $processedPrincipals (dict
+      "name" $principalName
+      "type" $principalType
+      "id" $principalId
+      "arn" $principalArn
+      "accountRef" $accountRef
+      "ouRef" $ouRef
+    ) }}
+  {{- end }}
+
+  # ==========================================================================
+  # Determine if this RAM share should render
+  # ==========================================================================
+  {{- $shouldRender := and $allResourcesResolved $allPrincipalsResolved }}
+
+  # Build processed RAM share entry
+  {{- $processedShare := dict
+    "name" $shareName
+    "render" $shouldRender
+    "region" $shareRegion
+    "allowExternalPrincipals" $allowExternalPrincipals
+    "permissionArns" $permissionArns
+    "resources" $processedResources
+    "principals" $processedPrincipals
+    "tags" $mergedTags
+    "managementPolicies" ($share.managementPolicies | default $eff.managementPolicies)
+  }}
+  {{- $processedRamShares = append $processedRamShares $processedShare }}
+{{- end }}
+
+# Set foundation.ramShares slice
+{{- $ramSharesState := dict
+  "render" $render
+  "processed" $processedRamShares
+}}
+{{- $state = set $state "foundation" (merge $state.foundation (dict "ramShares" $ramSharesState)) }}

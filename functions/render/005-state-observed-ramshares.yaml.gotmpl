@@ -1,0 +1,47 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# Observed State: RAM Shares
+# ==========================
+# Extracts RAM share status from observed RAMShare XRD resources.
+
+{{- $raw := $.observed.resources | default dict }}
+
+# Initialize RAM shares observed state
+{{- $ramSharesObserved := dict
+  "byName" (dict)
+}}
+
+# Extract status from each RAM share
+{{- range $key, $entry := $raw }}
+  {{- if hasPrefix "ramshare-" $key }}
+    {{- $resource := $entry.resource | default dict }}
+    {{- $status := $resource.status | default dict }}
+
+    # Check readiness
+    {{- $ready := false }}
+    {{- range ($status.conditions | default list) }}
+      {{- if and (eq .type "Ready") (eq .status "True") }}
+        {{- $ready = true }}
+      {{- end }}
+    {{- end }}
+
+    # Extract share name from resource name (remove foundation prefix)
+    {{- $resourceName := ($resource.metadata).name | default "" }}
+    {{- $shareName := trimPrefix "ramshare-" $key }}
+
+    # Build observed entry
+    {{- $shareObserved := dict
+      "ready" $ready
+      "shareArn" ($status.shareArn | default "Pending")
+      "shareId" ($status.shareId | default "Pending")
+      "resources" ($status.resources | default list)
+      "principals" ($status.principals | default list)
+    }}
+
+    {{- $ramSharesObserved = set $ramSharesObserved "byName" (set $ramSharesObserved.byName $shareName $shareObserved) }}
+  {{- end }}
+{{- end }}
+
+# Set observed.ramShares slice
+{{- $state = set $state "observed" (merge $state.observed (dict "ramShares" $ramSharesObserved)) }}

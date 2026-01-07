@@ -23,6 +23,7 @@ spec:
     name: {{ $network.providerConfig }}
     kind: ProviderConfig
   region: {{ $network.region }}
+  labels: {{ $state.foundation.labels | toJson }}
   {{- if gt (len $network.tags) 0 }}
   tags:
     {{- toYaml $network.tags | nindent 4 }}

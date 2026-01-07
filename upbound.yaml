@@ -1,7 +1,7 @@
 apiVersion: meta.dev.upbound.io/v2alpha1
 kind: Project
 metadata:
-  name: configuration-aws-foundation
+  name: aws-foundation
 spec:
   dependsOn:
   - apiVersion: pkg.crossplane.io/v1
@@ -14,19 +14,23 @@ spec:
     version: '>=v1.2.0'
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
-    package: ghcr.io/hops-ops/configuration-aws-organization
-    version: '>=v0.16.1'
+    package: ghcr.io/hops-ops/aws-organization
+    version: '>=v0.17.0'
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
-    package: ghcr.io/hops-ops/configuration-aws-identity-center
-    version: '>=v0.5.0'
+    package: ghcr.io/hops-ops/aws-identity-center
+    version: '>=v0.6.1'
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
-    package: ghcr.io/hops-ops/configuration-aws-ipam
-    version: '>=v0.15.0'
+    package: ghcr.io/hops-ops/aws-ipam
+    version: '>=v0.16.0'
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
-    package: ghcr.io/hops-ops/configuration-aws-network
+    package: ghcr.io/hops-ops/aws-network
+    version: '>=v0.4.0'
+  - apiVersion: pkg.crossplane.io/v1
+    kind: Configuration
+    package: ghcr.io/hops-ops/aws-ram-share
     version: '>=v0.3.0'
   description: |
     Foundation XRD - A unified API for creating the complete AWS foundational layer.
@@ -35,16 +39,15 @@ spec:
   license: Apache-2.0
   maintainer: Patrick Lee Scott <pat@patscott.io>
   readme: |
-    # configuration-aws-foundation
+    # aws-foundation
 
     Foundation creates a complete AWS foundation in a single resource by composing:
     - **Organization XRD** - AWS Organization with OUs and accounts
     - **IdentityCenter XRD** - Groups, users, permission sets, account assignments
-    - **IPAM XRD** - IP pools for VPC management with RAM sharing
+    - **IPAM XRD** - IP pools for VPC management
 
     Key features:
     - Account names can be referenced everywhere and are automatically resolved to AWS account IDs
-    - OU paths are automatically resolved for IPAM RAM sharing
     - Each account gets a ProviderConfig using OrganizationAccountAccessRole
 
     Example:
@@ -64,10 +67,9 @@ spec:
       ipam:
         delegatedAdminAccount: shared-services  # Reference by name!
         pools:
-          - name: prod-vpc
-            cidr: 10.0.0.0/16
-            ramShareTargets:
-              - ou: Workloads/Prod  # Reference by path!
+          ipv4:
+            - name: prod-vpc
+              cidr: 10.0.0.0/16
     ```
-  repository: ghcr.io/hops-ops/configuration-aws-foundation
-  source: github.com/hops-ops/configuration-aws-foundation
+  repository: ghcr.io/hops-ops/aws-foundation
+  source: github.com/hops-ops/aws-foundation

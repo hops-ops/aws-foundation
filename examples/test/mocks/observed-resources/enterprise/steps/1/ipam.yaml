@@ -1,4 +1,4 @@
-# IPAM XRD - Ready with hierarchical dual-stack pools shared to Teams OU
+# IPAM XRD - Ready with hierarchical dual-stack pools
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: IPAM
 metadata:

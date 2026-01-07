@@ -1,10 +1,10 @@
 apiVersion: meta.pkg.crossplane.io/v1alpha1
 kind: Configuration
 metadata:
-  name: configuration-aws-foundation
+  name: aws-foundation
   annotations:
     meta.crossplane.io/maintainer: Patrick Lee Scott
-    meta.crossplane.io/source: github.com/hops-ops/configuration-aws-foundation
+    meta.crossplane.io/source: github.com/hops-ops/aws-foundation
     meta.crossplane.io/description: Unified AWS foundation composing Organization, IdentityCenter, and IPAM XRDs.
 spec:
   dependsOn:
@@ -12,11 +12,13 @@ spec:
     version: ">=v0.6.0"
   - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
     version: ">=v1.2.0"
-  - configuration: ghcr.io/hops-ops/configuration-aws-organization
-    version: ">=v0.16.1"
-  - configuration: ghcr.io/hops-ops/configuration-aws-identity-center
-    version: ">=v0.5.0"
-  - configuration: ghcr.io/hops-ops/configuration-aws-ipam
-    version: ">=v0.15.0"
-  - configuration: ghcr.io/hops-ops/configuration-aws-network
+  - configuration: ghcr.io/hops-ops/aws-organization
+    version: ">=v0.17.0"
+  - configuration: ghcr.io/hops-ops/aws-identity-center
+    version: ">=v0.6.1"
+  - configuration: ghcr.io/hops-ops/aws-ipam
+    version: ">=v0.16.0"
+  - configuration: ghcr.io/hops-ops/aws-network
+    version: ">=v0.4.0"
+  - configuration: ghcr.io/hops-ops/aws-ram-share
     version: ">=v0.3.0"

@@ -1,0 +1,63 @@
+# code: language=yaml
+# yaml-language-server: $schema=../../.up/json/models/index.schema.json
+#
+# RAM Shares - aws-ram-share RAMShare XRDs
+# ========================================
+# Creates RAMShare XRD instances for each RAM share in spec.ramShares[].
+# IPAM pool refs are resolved to ARNs from IPAM status.
+# Account refs are resolved to IDs from organization status.
+
+{{- if $state.foundation.ramShares.render }}
+{{- range $share := $state.foundation.ramShares.processed }}
+  {{- if $share.render }}
+---
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: RAMShare
+metadata:
+  name: {{ $state.foundation.name }}-{{ $share.name }}
+  annotations:
+    {{ setResourceNameAnnotation (printf "ramshare-%s" $share.name) }}
+spec:
+  managementPolicies: {{ toJson $share.managementPolicies }}
+  providerConfigRef:
+    name: {{ $state.spec.effective.providerConfigRef.name }}
+    kind: {{ $state.spec.effective.providerConfigRef.kind }}
+  region: {{ $share.region }}
+  name: {{ $state.foundation.name }}-{{ $share.name }}
+  labels: {{ $state.foundation.labels | toJson }}
+  allowExternalPrincipals: {{ $share.allowExternalPrincipals }}
+  {{- if gt (len $share.permissionArns) 0 }}
+  permissionArns: {{ toJson $share.permissionArns }}
+  {{- end }}
+
+  {{- /* Resources */}}
+  {{- if gt (len $share.resources) 0 }}
+  resources:
+    {{- range $resource := $share.resources }}
+    - name: {{ $resource.name }}
+      arn: {{ $resource.arn }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* Principals */}}
+  {{- if gt (len $share.principals) 0 }}
+  principals:
+    {{- range $principal := $share.principals }}
+    - name: {{ $principal.name }}
+      type: {{ $principal.type }}
+      {{- if eq $principal.type "account" }}
+      id: "{{ $principal.id }}"
+      {{- else }}
+      arn: {{ $principal.arn }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- /* Tags */}}
+  {{- if gt (len $share.tags) 0 }}
+  tags:
+    {{- toYaml $share.tags | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

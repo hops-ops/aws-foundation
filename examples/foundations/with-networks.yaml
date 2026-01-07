@@ -3,7 +3,7 @@
 # First expansion from individual to multi-team architecture:
 # - AWS Organization for account management
 # - Teams OU with accounts per team
-# - IPAM pools shared to Teams OU
+# - IPAM with hierarchical pools
 # - Each team gets their own dual-stack VPC
 #
 # This is the minimal multi-team setup:
@@ -46,7 +46,6 @@ spec:
       - sso.amazonaws.com
       - account.amazonaws.com
       - ipam.amazonaws.com
-      - ram.amazonaws.com
 
   # ---------------------------------------------------------------------------
   # Organizational Unit Hierarchy
@@ -120,7 +119,7 @@ spec:
           - acme-beta
 
   # ---------------------------------------------------------------------------
-  # IPAM - Pools shared with Teams OU
+  # IPAM - Hierarchical IP pools
   # ---------------------------------------------------------------------------
   ipam:
     region: us-east-1
@@ -135,7 +134,7 @@ spec:
             netmaskLength:
               default: 12
 
-        # Regional pool shared with all teams
+        # Regional pool for teams
         - name: ipv4-us-east-1
           sourcePoolRef: ipv4-global
           locale: us-east-1
@@ -143,8 +142,6 @@ spec:
           allocations:
             netmaskLength:
               default: 16
-          ramShareTargets:
-            - ou: Teams
 
       ipv6:
         ula:
@@ -161,8 +158,6 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
 
         gua:
           - name: ipv6-gua-us-east-1
@@ -173,8 +168,6 @@ spec:
             allocations:
               netmaskLength:
                 default: 56
-            ramShareTargets:
-              - ou: Teams
 
   # ---------------------------------------------------------------------------
   # Networks - each team gets their own VPC

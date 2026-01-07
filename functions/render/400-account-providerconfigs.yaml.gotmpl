@@ -39,10 +39,7 @@ spec:
       metadata:
         name: {{ $accountName }}
         namespace: {{ $memberPCs.namespace }}
-        labels:
-          hops.ops.com.ai/managed: "true"
-          hops.ops.com.ai/foundation: {{ $state.foundation.name }}
-          hops.ops.com.ai/account-name: {{ $accountName }}
+        labels: {{ merge $state.foundation.labels (dict "hops.ops.com.ai/account-name" $accountName) | toJson }}
       spec:
         assumeRoleChain:
           - roleARN: arn:aws:iam::{{ $accountId }}:role/OrganizationAccountAccessRole

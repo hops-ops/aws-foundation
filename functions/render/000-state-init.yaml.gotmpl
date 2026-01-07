@@ -29,6 +29,12 @@
 {{- $region := $spec.region | default "us-east-1" }}
 {{- $defaultTags := dict "hops" "true" }}
 
+# Default labels: managed=true + <kind>=<name>
+{{- $defaultLabels := dict
+  "hops.ops.com.ai/managed" "true"
+  (printf "hops.ops.com.ai/%s" (lower $xr.kind)) $name
+}}
+
 # Organization spec with defaults
 {{- $organization := $spec.organization | default dict }}
 {{- $organizationalUnits := $spec.organizationalUnits | default list }}
@@ -48,6 +54,9 @@
 # Networks spec with defaults
 {{- $networkDefaults := $spec.networkDefaults | default dict }}
 {{- $networks := $spec.networks | default list }}
+
+# RAM Shares spec
+{{- $ramShares := $spec.ramShares | default list }}
 
 # =============================================================================
 # Initialize $state
@@ -71,6 +80,7 @@
 
       "region" $region
 
+      "labels" (merge $defaultLabels ($spec.labels | default dict))
       "tags" (merge $defaultTags ($spec.tags | default dict))
 
       "organization" (dict
@@ -131,6 +141,10 @@
       "networks" (dict
         "enabled" (gt (len $networks) 0)
         "items" $networks
+      )
+      "ramShares" (dict
+        "enabled" (gt (len $ramShares) 0)
+        "items" $ramShares
       )
     )
   )

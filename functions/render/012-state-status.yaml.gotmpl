@@ -157,6 +157,25 @@
 {{- end }}
 
 # =============================================================================
+# RAM Shares status
+# =============================================================================
+{{- $ramSharesStatus := list }}
+{{- if $eff.ramShares.enabled }}
+  {{- range $share := $state.foundation.ramShares.processed }}
+    {{- $shareName := $share.name }}
+    {{- $observedShare := get $obs.ramShares.byName $shareName | default dict }}
+    {{- $ramSharesStatus = append $ramSharesStatus (dict
+      "name" $shareName
+      "ready" ($observedShare.ready | default false)
+      "shareArn" ($observedShare.shareArn | default "Pending")
+      "shareId" ($observedShare.shareId | default "Pending")
+      "resources" ($observedShare.resources | default list)
+      "principals" ($observedShare.principals | default list)
+    ) }}
+  {{- end }}
+{{- end }}
+
+# =============================================================================
 # Set $state.status
 # =============================================================================
 {{- $state = set $state "status" (dict
@@ -167,6 +186,7 @@
   "identityCenter" $identityCenterStatus
   "ipam" $ipamStatus
   "networks" $networksStatus
+  "ramShares" $ramSharesStatus
   "spec" (dict
     "raw" $state.spec.raw
     "effective" $state.spec.effective

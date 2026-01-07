@@ -22,6 +22,7 @@ spec:
   providerConfigRef:
     name: {{ $ic.providerConfig.name }}
     kind: {{ $ic.providerConfig.kind }}
+  labels: {{ $state.foundation.labels | toJson }}
   identityStoreId: {{ $ic.identityStoreId }}
   {{- if $ic.instanceArn }}
   identityCenter:

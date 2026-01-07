@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-PACKAGE ?= configuration-aws-foundation
+PACKAGE ?= aws-foundation
 XRD_DIR := apis/foundations
 COMPOSITION := $(XRD_DIR)/composition.yaml
 DEFINITION := $(XRD_DIR)/definition.yaml
@@ -17,7 +17,8 @@ EXAMPLES := \
     examples/foundations/enterprise.yaml:: \
     examples/foundations/enterprise.yaml::examples/test/mocks/observed-resources/enterprise/steps/1 \
     examples/foundations/import-existing.yaml:: \
-    examples/foundations/with-networks.yaml::
+    examples/foundations/with-networks.yaml:: \
+    examples/foundations/with-ram-shares.yaml::
 
 clean:
 	rm -rf _output

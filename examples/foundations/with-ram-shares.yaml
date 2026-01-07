@@ -1,0 +1,210 @@
+# With RAM Shares: Foundation with IPAM pool sharing
+# ==================================================
+# Extends the enterprise example to share IPAM pools with team accounts.
+# RAM shares allow member accounts to allocate IPs from centralized IPAM pools.
+#
+# Prerequisites:
+# - RAM sharing with Organizations must be enabled in the management account
+#   Run: aws ram enable-sharing-with-aws-organization
+# - Organization must have ram.amazonaws.com in awsServiceAccessPrincipals
+#
+# This example creates:
+# - 1 AWS Organization with ram.amazonaws.com service access
+# - IPAM with regional pools
+# - RAM share to share IPAM pools with Teams OU
+
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
+metadata:
+  name: acme
+  namespace: acme
+spec:
+  managementPolicies: ["*"]
+
+  providerConfigRef:
+    name: aws-management-account
+    kind: ProviderConfig
+
+  region: us-east-1
+
+  tags:
+    organization: acme
+    managed-by: crossplane
+
+  # ---------------------------------------------------------------------------
+  # Organization Settings - enable RAM service access
+  # ---------------------------------------------------------------------------
+  organization:
+    awsServiceAccessPrincipals:
+      - iam.amazonaws.com
+      - sso.amazonaws.com
+      - account.amazonaws.com
+      - ipam.amazonaws.com
+      - ram.amazonaws.com  # Required for RAM sharing
+
+  # ---------------------------------------------------------------------------
+  # Organizational Unit Hierarchy
+  # ---------------------------------------------------------------------------
+  organizationalUnits:
+    - path: Platform
+    - path: Teams
+    - path: Teams/Alpha
+    - path: Teams/Beta
+
+  # ---------------------------------------------------------------------------
+  # Accounts
+  # ---------------------------------------------------------------------------
+  accounts:
+    - name: acme-platform
+      email: aws-platform@acme.example.com
+      ou: Platform
+      tags:
+        team: platform
+
+    - name: acme-alpha
+      email: aws-alpha@acme.example.com
+      ou: Teams/Alpha
+      tags:
+        team: alpha
+
+    - name: acme-beta
+      email: aws-beta@acme.example.com
+      ou: Teams/Beta
+      tags:
+        team: beta
+
+  # ---------------------------------------------------------------------------
+  # Delegated Administrators
+  # ---------------------------------------------------------------------------
+  delegatedAdministrators:
+    - servicePrincipal: ipam.amazonaws.com
+      account: acme-platform
+
+  # ---------------------------------------------------------------------------
+  # IPAM - Centralized IP pools
+  # ---------------------------------------------------------------------------
+  ipam:
+    delegatedAdminAccount: acme-platform
+    region: us-east-1
+    operatingRegions:
+      - us-east-1
+
+    pools:
+      ipv4:
+        # Global pool
+        - name: ipv4-global
+          cidr: 10.0.0.0/8
+          allocations:
+            netmaskLength:
+              default: 12
+          description: Global IPv4 pool
+
+        # Regional pool for teams - this will be shared via RAM
+        - name: ipv4-us-east-1-teams
+          sourcePoolRef: ipv4-global
+          locale: us-east-1
+          cidr: 10.0.0.0/12
+          allocations:
+            netmaskLength:
+              default: 16
+          description: Regional IPv4 pool for team accounts
+
+      ipv6:
+        ula:
+          - name: ipv6-ula-global
+            netmaskLength: 40
+            allocations:
+              netmaskLength:
+                default: 44
+            description: Global ULA IPv6 pool
+
+          # Regional ULA pool for teams - this will be shared via RAM
+          - name: ipv6-ula-us-east-1-teams
+            sourcePoolRef: ipv6-ula-global
+            locale: us-east-1
+            netmaskLength: 44
+            allocations:
+              netmaskLength:
+                default: 56
+            description: Regional ULA IPv6 pool for team accounts
+
+  # ---------------------------------------------------------------------------
+  # RAM Shares - Share IPAM pools with team accounts
+  # ---------------------------------------------------------------------------
+  ramShares:
+    # Share IPAM pools with the Teams OU
+    - name: ipam-pools-teams
+      region: us-east-1
+      allowExternalPrincipals: false
+      resources:
+        # Share IPv4 regional pool
+        - name: ipv4-regional
+          ipamPoolRef: ipv4-us-east-1-teams
+        # Share IPv6 ULA regional pool
+        - name: ipv6-ula-regional
+          ipamPoolRef: ipv6-ula-us-east-1-teams
+      principals:
+        # Share with the entire Teams OU (all current and future team accounts)
+        - name: teams-ou
+          type: organizationalUnit
+          ouRef: Teams
+      tags:
+        purpose: ipam-pool-sharing
+
+    # Alternative: Share with specific accounts instead of OU
+    - name: ipam-pools-alpha
+      region: us-east-1
+      allowExternalPrincipals: false
+      resources:
+        - name: ipv4-regional
+          ipamPoolRef: ipv4-us-east-1-teams
+      principals:
+        - name: alpha-account
+          type: account
+          accountRef: acme-alpha  # Resolved to account ID automatically
+      tags:
+        purpose: ipam-pool-sharing
+        team: alpha
+
+  # ---------------------------------------------------------------------------
+  # Networks - team VPCs using shared IPAM pools
+  # ---------------------------------------------------------------------------
+  networkDefaults:
+    subnetLayout:
+      availabilityZones: [a, b, c]
+      public:
+        enabled: true
+        netmaskLength: 24
+      private:
+        enabled: true
+        netmaskLength: 20
+    nat:
+      enabled: true
+      strategy: SingleAz
+
+  networks:
+    - name: alpha
+      account: acme-alpha
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-teams
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1-teams
+          netmaskLength: 56
+      tags:
+        team: alpha
+
+    - name: beta
+      account: acme-beta
+      region: us-east-1
+      ipam:
+        ipv4:
+          poolRef: ipv4-us-east-1-teams
+          netmaskLength: 16
+        ipv6Ula:
+          poolRef: ipv6-ula-us-east-1-teams
+          netmaskLength: 56
+      tags:
+        team: beta

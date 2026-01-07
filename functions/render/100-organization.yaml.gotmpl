@@ -23,6 +23,7 @@ spec:
   providerConfigRef:
     name: {{ $state.foundation.providerConfig.name }}
     kind: {{ $state.foundation.providerConfig.kind }}
+  labels: {{ $state.foundation.labels | toJson }}
   tags:
     {{- toYaml $state.foundation.tags | nindent 4 }}
   organization:

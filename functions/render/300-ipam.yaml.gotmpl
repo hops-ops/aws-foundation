@@ -26,6 +26,7 @@ spec:
   providerConfigRef:
     name: {{ $ipam.providerConfig.name }}
     kind: {{ $ipam.providerConfig.kind }}
+  labels: {{ $state.foundation.labels | toJson }}
   {{- if $ipam.externalName }}
   externalName: {{ $ipam.externalName }}
   {{- end }}

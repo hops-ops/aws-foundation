@@ -23,10 +23,11 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  id-token: write
 
 jobs:
   validate:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/validate.yaml@v2.6.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/validate.yaml@v2.7.0
     with:
       examples: |
         [
@@ -36,21 +37,25 @@ jobs:
           { "example": "examples/foundations/enterprise.yaml" },
           { "example": "examples/foundations/enterprise.yaml", "observed_resources": "examples/test/mocks/observed-resources/enterprise/steps/1" },
           { "example": "examples/foundations/import-existing.yaml" },
-          { "example": "examples/foundations/with-networks.yaml" }
+          { "example": "examples/foundations/with-networks.yaml" },
+          { "example": "examples/foundations/with-ram-shares.yaml" }
         ]
       api_path: apis/foundations
       error_on_missing_schemas: true
 
   test:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/test.yaml@v2.6.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/test.yaml@v2.7.0
 
   e2e:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/e2e.yaml@v2.6.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/e2e.yaml@v2.7.0
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     with:
       aws: true
+      aws-use-oidc: true
+      aws-account-id: "034489662075"
+      aws-region: us-east-2
       timeout-minutes: 33
       debug-resource-types: |
         [
@@ -64,7 +69,7 @@ jobs:
     needs:
       - validate
       - test
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/publish.yaml@v2.6.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/publish.yaml@v2.7.0
     secrets: inherit
     with:
       tag: pr-${{ github.event.pull_request.number }}-${{ github.sha }}
