@@ -54,7 +54,7 @@ jobs:
     with:
       aws: true
       aws-use-oidc: true
-      aws-account-id: 034489662075
+      aws-account-id: "034489662075"
       aws-region: us-east-2
       timeout-minutes: 33
       debug-resource-types: |
