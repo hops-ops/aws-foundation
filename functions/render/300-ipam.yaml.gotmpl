@@ -8,6 +8,7 @@
 
 {{- if $state.foundation.ipam.render }}
 {{- $ipam := $state.foundation.ipam }}
+{{- $imports := $state.foundation.imports }}
 {{- $pools := $ipam.pools }}
 {{- $ipv4Pools := $pools.ipv4 | default list }}
 {{- $ipv6Pools := $pools.ipv6 | default dict }}
@@ -27,8 +28,9 @@ spec:
     name: {{ $ipam.providerConfig.name }}
     kind: {{ $ipam.providerConfig.kind }}
   labels: {{ $state.foundation.labels | toJson }}
-  {{- if $ipam.externalName }}
-  externalName: {{ $ipam.externalName }}
+  {{- if $imports.ipam }}
+  imports:
+    ipam: {{ $imports.ipam }}
   {{- end }}
   {{- if $ipam.forProvider }}
   forProvider:

@@ -36,10 +36,15 @@ spec:
     imported: "true"
 
   # ---------------------------------------------------------------------------
-  # Import existing organization
+  # Import existing resources via top-level imports object
+  # ---------------------------------------------------------------------------
+  imports:
+    organization: o-abc123xyz  # Your existing organization ID
+
+  # ---------------------------------------------------------------------------
+  # Organization configuration
   # ---------------------------------------------------------------------------
   organization:
-    externalName: o-abc123xyz  # Your existing organization ID
     awsServiceAccessPrincipals:
       - iam.amazonaws.com
       - sso.amazonaws.com

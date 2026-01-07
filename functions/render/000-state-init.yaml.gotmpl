@@ -25,6 +25,9 @@
 {{- $awsProviderConfigRef := $spec.providerConfigRef | default dict }}
 {{- $k8sProviderConfigRef := $spec.kubernetesProviderConfigRef | default dict }}
 
+# Imports - external names for importing existing resources
+{{- $imports := $spec.imports | default dict }}
+
 # Region at spec level
 {{- $region := $spec.region | default "us-east-1" }}
 {{- $defaultTags := dict "hops" "true" }}
@@ -83,9 +86,13 @@
       "labels" (merge $defaultLabels ($spec.labels | default dict))
       "tags" (merge $defaultTags ($spec.tags | default dict))
 
+      "imports" (dict
+        "organization" ($imports.organization | default "")
+        "ipam" ($imports.ipam | default "")
+      )
+
       "organization" (dict
         "enabled" (or (gt (len $organizationalUnits) 0) (gt (len $accounts) 0))
-        "externalName" ($organization.externalName | default "")
         "managementPolicies" ($organization.managementPolicies | default ($spec.managementPolicies | default (list "*")))
         "awsServiceAccessPrincipals" ($organization.awsServiceAccessPrincipals | default list)
       )
@@ -121,7 +128,6 @@
         "region" ($ipam.region | default $region)
         "operatingRegions" ($ipam.operatingRegions | default (list ($ipam.region | default $region)))
         "managementPolicies" ($ipam.managementPolicies | default ($spec.managementPolicies | default (list "*")))
-        "externalName" ($ipam.externalName | default "")
         "forProvider" ($ipam.forProvider | default dict)
         "pools" $ipamPools
       )

@@ -158,10 +158,17 @@ _foundation_manifest = {
         }
 
         # -----------------------------------------------------------------
+        # Import existing resources via top-level imports object
+        # -----------------------------------------------------------------
+        imports: {
+            organization: _existing_org_id
+            ipam: _ipam_external_name
+        }
+
+        # -----------------------------------------------------------------
         # Organization - import existing org, OU, and account
         # -----------------------------------------------------------------
         organization: {
-            externalName: _existing_org_id
             managementPolicies: _observeOnly
             awsServiceAccessPrincipals: [
                 "iam.amazonaws.com"
@@ -232,7 +239,6 @@ _foundation_manifest = {
             region: _region
             operatingRegions: [_region]
             managementPolicies: _observeOnly
-            externalName: _ipam_external_name
 
             pools: {
                 ipv4: [

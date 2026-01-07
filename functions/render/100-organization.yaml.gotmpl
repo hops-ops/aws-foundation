@@ -8,6 +8,7 @@
 {{- if $state.foundation.organization.render }}
 {{- $org := $state.foundation.organization }}
 {{- $eff := $state.spec.effective }}
+{{- $imports := $state.foundation.imports }}
 ---
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: Organization
@@ -17,8 +18,9 @@ metadata:
     {{ setResourceNameAnnotation "organization" }}
 spec:
   managementPolicies: {{ toJson $state.foundation.managementPolicies }}
-  {{- if $org.externalName }}
-  externalName: {{ $org.externalName | quote }}
+  {{- if $imports.organization }}
+  imports:
+    organization: {{ $imports.organization | quote }}
   {{- end }}
   providerConfigRef:
     name: {{ $state.foundation.providerConfig.name }}

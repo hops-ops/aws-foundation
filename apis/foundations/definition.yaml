@@ -42,6 +42,28 @@ spec:
                   type: string
                 x-kubernetes-preserve-unknown-fields: true
 
+              # Import existing resources (similar to Terraform import)
+              imports:
+                type: object
+                description: |
+                  External names of existing AWS resources to import into Crossplane management.
+                  Use with managementPolicies excluding "Delete" to adopt without risk of deletion.
+                  Leave fields empty to create new resources.
+
+                  For nested resources (OUs, accounts, groups, users, permission sets, pools, networks),
+                  use the externalName field within each item's configuration.
+                properties:
+                  organization:
+                    type: string
+                    description: |
+                      Existing AWS Organization ID to import.
+                      Example: "o-abc123xyz"
+                  ipam:
+                    type: string
+                    description: |
+                      Existing IPAM ID to import.
+                      Example: "ipam-0123456789abcdef0"
+
               providerConfigRef:
                 type: object
                 description: AWS provider config reference. Falls back to metadata.name.
@@ -277,11 +299,6 @@ spec:
                     description: AWS regions where IPAM can allocate CIDRs.
                     items:
                       type: string
-                  externalName:
-                    type: string
-                    description: |
-                      IPAM ID to adopt (e.g., ipam-0123456789abcdef0).
-                      When set, imports the existing IPAM instead of creating a new one.
                   forProvider:
                     type: object
                     description: Override any forProvider field on the VPCIpam resource.
