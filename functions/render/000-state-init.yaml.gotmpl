@@ -27,13 +27,13 @@
 
 # Region at spec level
 {{- $region := $spec.region | default "us-east-1" }}
-{{- $defaultTags := dict "hops" "true" }}
-
-# Default labels: managed=true + <kind>=<name>
-{{- $defaultLabels := dict
+# Default labels/tags: managed=true + <kind>=<name>
+{{- $defaults := dict
   "hops.ops.com.ai/managed" "true"
   (printf "hops.ops.com.ai/%s" (lower $xr.kind)) $name
 }}
+{{- $labels := merge $defaults ($spec.labels | default dict) }}
+{{- $tags := merge $defaults ($spec.tags | default dict) }}
 
 # Organization spec with defaults
 {{- $organization := $spec.organization | default dict }}
@@ -80,8 +80,8 @@
 
       "region" $region
 
-      "labels" (merge $defaultLabels ($spec.labels | default dict))
-      "tags" (merge $defaultTags ($spec.tags | default dict))
+      "labels" $labels
+      "tags" $tags
 
       "organization" (dict
         "enabled" (or (gt (len $organizationalUnits) 0) (gt (len $accounts) 0))

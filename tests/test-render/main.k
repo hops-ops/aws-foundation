@@ -156,7 +156,7 @@ _items = [
     },
 
     # =========================================================================
-    # Default Values: hops=true tag always applied
+    # Default Values: managed tags always applied
     # =========================================================================
 
     metav1alpha1.CompositionTest{
@@ -183,7 +183,8 @@ _items = [
                     kind = "Organization"
                     metadata.name = "test-tags"
                     spec.tags = {
-                        hops = "true"
+                        "hops.ops.com.ai/managed" = "true"
+                        "hops.ops.com.ai/foundation" = "test-tags"
                         "custom-tag" = "custom-value"
                     }
                 }
@@ -683,8 +684,9 @@ _items = [
                         # From network.tags (highest priority wins)
                         "team" = "application"
                         "app" = "myapp"
-                        # Default hops tag
-                        "hops" = "true"
+                        # Default managed tags
+                        "hops.ops.com.ai/managed" = "true"
+                        "hops.ops.com.ai/foundation" = "test-tags-merge"
                     }
                 }
             ]
