@@ -15,7 +15,7 @@ spec:
   - configuration: ghcr.io/hops-ops/aws-organization
     version: ">=v0.19.0"
   - configuration: ghcr.io/hops-ops/aws-identity-center
-    version: ">=v0.7.0"
+    version: ">=v0.7.1"
   - configuration: ghcr.io/hops-ops/aws-ipam
     version: ">=v0.17.0"
   - configuration: ghcr.io/hops-ops/aws-network
