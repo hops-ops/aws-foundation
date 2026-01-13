@@ -32,8 +32,8 @@
   "hops.ops.com.ai/managed" "true"
   (printf "hops.ops.com.ai/%s" (lower $xr.kind)) $name
 }}
-{{- $labels := merge $defaults ($spec.labels | default dict) }}
-{{- $tags := merge $defaults ($spec.tags | default dict) }}
+{{- $labels := merge (dict) $defaults ($spec.labels | default dict) }}
+{{- $tags := merge (dict) $defaults ($spec.tags | default dict) }}
 
 # Organization spec with defaults
 {{- $organization := $spec.organization | default dict }}
