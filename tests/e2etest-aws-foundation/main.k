@@ -87,40 +87,40 @@ _ipv6_private_regional_pool_external_name = "ipam-pool-0ca730678e463dbfc"
 _ipv6_private_regional_cidr_external_name = "fda0:daf7:1::/48" + "_" + _ipv6_private_regional_pool_external_name
 
 # =============================================================================
-# Existing Network (from aws-network e2e test)
+# Existing Network (from aws-network e2e test - "hops-test" network)
 # =============================================================================
 
 # VPC and gateway IDs
-_network_vpc_external_name = "vpc-08b36c3876f7483c6"
-_network_igw_external_name = "igw-03a2b57e7564cda9f"
-_network_eigw_external_name = "eigw-0509f3b2bd1be9138"
+_network_vpc_external_name = "vpc-0c20c458dcb738f21"
+_network_igw_external_name = "igw-0a11d99e3cc584333"
+_network_eigw_external_name = "eigw-02d33bcb5e87d8353"
 
 # Subnet external names (AZs a, b, c)
 _network_subnet_external_names = {
-    "private-a": "subnet-0020e9ba5ee42afee"
-    "private-b": "subnet-0cbb443a464822732"
-    "private-c": "subnet-00973c5fd791f6037"
-    "public-a": "subnet-02ff76c2c4176f37f"
-    "public-b": "subnet-07b28779d3b08cb9f"
-    "public-c": "subnet-057c84f314a39d68d"
+    "private-a": "subnet-0ba2f584c25e9435d"
+    "private-b": "subnet-02e4d512f8859e684"
+    "private-c": "subnet-0a46f41be19e3ef54"
+    "public-a": "subnet-0f17f94da9c13d3fe"
+    "public-b": "subnet-0f09414e8042cbee9"
+    "public-c": "subnet-0739c3679702306eb"
 }
 
 # Route table external names
 _network_rt_external_names = {
-    "private-a": "rtb-06f5dfc79be8adde5"
-    "private-b": "rtb-091712a660e70b8c8"
-    "private-c": "rtb-099239ef54186f902"
-    "public": "rtb-0ab0e4783e8f1f95c"
+    "public": "rtb-0ec6e6b72b4069f6d"
+    "private-a": "rtb-0123083a1a6980352"
+    "private-b": "rtb-0f3651ed2fa86b78c"
+    "private-c": "rtb-00bcd173ff8e26c91"
 }
 
 # Route table association external names
 _network_rta_external_names = {
-    "private-a": "rtbassoc-06f73a87e5e6aa1e3"
-    "private-b": "rtbassoc-09ec129f2661a33c7"
-    "private-c": "rtbassoc-001ec41949a17ebdc"
-    "public-a": "rtbassoc-0b77df963c53e1207"
-    "public-b": "rtbassoc-04fda70b1c1b457a0"
-    "public-c": "rtbassoc-0ebd2d46928315951"
+    "public-a": "rtbassoc-0f55cb72f58eba3c6"
+    "public-b": "rtbassoc-0e260598fc03c1bda"
+    "public-c": "rtbassoc-0ed529b17080a7ff5"
+    "private-a": "rtbassoc-05a8500db23f7e5c4"
+    "private-b": "rtbassoc-04181252701b445f0"
+    "private-c": "rtbassoc-0f81cf5c3e798aa8c"
 }
 
 # =============================================================================
