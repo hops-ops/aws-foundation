@@ -15,7 +15,7 @@ spec:
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
     package: ghcr.io/hops-ops/aws-organization
-    version: '>=v0.20.0'
+    version: '>=v0.22.0'
   - apiVersion: pkg.crossplane.io/v1
     kind: Configuration
     package: ghcr.io/hops-ops/aws-identity-center
