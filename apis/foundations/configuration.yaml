@@ -13,7 +13,7 @@ spec:
   - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
     version: ">=v1.2.0"
   - configuration: ghcr.io/hops-ops/aws-organization
-    version: ">=v0.20.0"
+    version: ">=v0.22.0"
   - configuration: ghcr.io/hops-ops/aws-identity-center
     version: ">=v0.8.0"
   - configuration: ghcr.io/hops-ops/aws-ipam
