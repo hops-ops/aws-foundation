@@ -11,6 +11,10 @@
 # Prerequisites:
 # - Run aws-ipam e2e test first to create the IPAM resources
 # - Run aws-network e2e test first to create the persistent network
+# - Populate env/ directory with resource IDs (CI does this automatically via env-vars input)
+#
+# For local runs, create env/ files manually:
+#   mkdir -p env && printf 'us-east-2' > env/AWS_REGION && printf 'o-xxx' > env/ORG_ID && ...
 #
 # NOTE: Uses untyped dicts for manifest because Foundation XRD uses extensive
 # x-kubernetes-preserve-unknown-fields which KCL model generation doesn't support.
@@ -23,11 +27,13 @@ _creds = file.read("secrets/aws-creds")
 _base64_creds = base64.encode(_creds)
 
 # =============================================================================
-# Configuration
+# Configuration — all environment-specific values read from env/ files.
+# The CI workflow writes these files before test execution.
+# For local runs, create the env/ directory and populate files manually.
 # =============================================================================
 
 _foundation_name = "hops-e2e-foundation"
-_region = "us-east-2"
+_region = file.read("env/AWS_REGION").strip()
 
 # Observe-only - don't modify resources managed by other repos
 _observeOnly = ["Observe"]
@@ -35,92 +41,75 @@ _observeOnly = ["Observe"]
 # =============================================================================
 # Existing Organization (from aws-organization e2e test)
 # =============================================================================
-# AWS only allows one org per account, so we adopt the existing one
-_existing_org_id = "o-3lholziq1o"
-
-# Test OU - persistent, imported via externalName
+_existing_org_id = file.read("env/ORG_ID").strip()
 _test_ou_path = "Test"
-_test_ou_external_name = "ou-hdvp-fbcb7sbw"
+_test_ou_external_name = file.read("env/TEST_OU_EXTERNAL_NAME").strip()
 
-# Test account - persistent, orphaned on delete
 _test_account_name = "configuration-aws-organization"
 _test_account_email = "configuration-aws-organization@ops.com.ai"
-_test_account_external_name = "544051101726"
+_test_account_external_name = file.read("env/TEST_ACCOUNT_EXTERNAL_NAME").strip()
 
 # =============================================================================
-# Existing Identity Center (AWS only allows one per org/account)
+# Existing Identity Center (from aws-identity-center e2e test)
 # =============================================================================
-# Get these values with: aws sso-admin list-instances
-_identity_store_id = "d-9a675288a4"
-_instance_arn = "arn:aws:sso:::instance/ssoins-668444b406cda8b2"
+_identity_store_id = file.read("env/IDENTITY_STORE_ID").strip()
+_instance_arn = file.read("env/SSO_INSTANCE_ARN").strip()
 
-# Persistent Identity Center resources - imported via externalName
-_persistent_group_name = "hops-e2e-test"
-_persistent_group_id = "d1fb9590-0091-7072-55a4-dd0778f5d5cb"
+# Persistent Identity Center resources — must match identity-center e2e test
+_persistent_group_name = file.read("env/IC_GROUP_NAME").strip()
+_persistent_group_id = file.read("env/IC_GROUP_ID").strip()
 
-_persistent_permission_set_name = "E2EPersistentAccess"
-_persistent_permission_set_arn = "arn:aws:sso:::permissionSet/ssoins-668444b406cda8b2/ps-aaebc62f1ea517cc"
+_persistent_permission_set_name = file.read("env/IC_PERMISSION_SET_NAME").strip()
+_persistent_permission_set_arn = file.read("env/IC_PERMISSION_SET_ARN").strip()
 _persistent_permission_set_external_name = _persistent_permission_set_arn + "," + _instance_arn
-
-# Note: Permission set assignments will use _test_account_name (resolved by Foundation)
 
 # =============================================================================
 # Existing IPAM (from aws-ipam e2e test)
 # =============================================================================
-# Get with: aws ec2 describe-ipams --query 'Ipams[*].[IpamId,Tags]'
-_ipam_external_name = "ipam-0573c7815d0a36e00"
+_ipam_external_name = file.read("env/IPAM_ID").strip()
 
-# Global IPv4 pool (10.0.0.0/8)
-_ipv4_global_pool_external_name = "ipam-pool-0a82c73b97dc0dabb"
+_ipv4_global_pool_external_name = file.read("env/IPAM_POOL_GLOBAL_IPV4").strip()
 _ipv4_global_cidr_external_name = "10.0.0.0/8" + "_" + _ipv4_global_pool_external_name
 
-# Regional IPv4 pool (10.0.0.0/12) - child of global, used by networks
-_ipv4_regional_pool_external_name = "ipam-pool-0607416fa3707147a"
+_ipv4_regional_pool_external_name = file.read("env/IPAM_POOL_REGIONAL_IPV4").strip()
 _ipv4_regional_cidr_external_name = "10.0.0.0/12" + "_" + _ipv4_regional_pool_external_name
 
-# Global IPv6 private pool (ULA /32)
-_ipv6_private_pool_external_name = "ipam-pool-02261bfded584dbfb"
+_ipv6_private_pool_external_name = file.read("env/IPAM_POOL_GLOBAL_IPV6").strip()
 _ipv6_private_cidr_external_name = "fda0:daf7::/32" + "_" + _ipv6_private_pool_external_name
 
-# Regional IPv6 private pool (/48) - child of global, used by networks
-_ipv6_private_regional_pool_external_name = "ipam-pool-0ca730678e463dbfc"
+_ipv6_private_regional_pool_external_name = file.read("env/IPAM_POOL_REGIONAL_IPV6").strip()
 _ipv6_private_regional_cidr_external_name = "fda0:daf7:1::/48" + "_" + _ipv6_private_regional_pool_external_name
 
 # =============================================================================
 # Existing Network (from aws-network e2e test - "hops-test" network)
 # =============================================================================
+_network_vpc_external_name = file.read("env/NETWORK_VPC").strip()
+_network_igw_external_name = file.read("env/NETWORK_IGW").strip()
+_network_eigw_external_name = file.read("env/NETWORK_EIGW").strip()
 
-# VPC and gateway IDs
-_network_vpc_external_name = "vpc-0c20c458dcb738f21"
-_network_igw_external_name = "igw-0a11d99e3cc584333"
-_network_eigw_external_name = "eigw-02d33bcb5e87d8353"
-
-# Subnet external names (AZs a, b, c)
 _network_subnet_external_names = {
-    "private-a": "subnet-0ba2f584c25e9435d"
-    "private-b": "subnet-02e4d512f8859e684"
-    "private-c": "subnet-0a46f41be19e3ef54"
-    "public-a": "subnet-0f17f94da9c13d3fe"
-    "public-b": "subnet-0f09414e8042cbee9"
-    "public-c": "subnet-0739c3679702306eb"
+    "private-a": file.read("env/NETWORK_SUBNET_PRIVATE_A").strip()
+    "private-b": file.read("env/NETWORK_SUBNET_PRIVATE_B").strip()
+    "private-c": file.read("env/NETWORK_SUBNET_PRIVATE_C").strip()
+    "public-a": file.read("env/NETWORK_SUBNET_PUBLIC_A").strip()
+    "public-b": file.read("env/NETWORK_SUBNET_PUBLIC_B").strip()
+    "public-c": file.read("env/NETWORK_SUBNET_PUBLIC_C").strip()
 }
 
-# Route table external names
 _network_rt_external_names = {
-    "public": "rtb-0ec6e6b72b4069f6d"
-    "private-a": "rtb-0123083a1a6980352"
-    "private-b": "rtb-0f3651ed2fa86b78c"
-    "private-c": "rtb-00bcd173ff8e26c91"
+    "public": file.read("env/NETWORK_RT_PUBLIC").strip()
+    "private-a": file.read("env/NETWORK_RT_PRIVATE_A").strip()
+    "private-b": file.read("env/NETWORK_RT_PRIVATE_B").strip()
+    "private-c": file.read("env/NETWORK_RT_PRIVATE_C").strip()
 }
 
-# Route table association external names
 _network_rta_external_names = {
-    "public-a": "rtbassoc-0f55cb72f58eba3c6"
-    "public-b": "rtbassoc-0e260598fc03c1bda"
-    "public-c": "rtbassoc-0ed529b17080a7ff5"
-    "private-a": "rtbassoc-05a8500db23f7e5c4"
-    "private-b": "rtbassoc-04181252701b445f0"
-    "private-c": "rtbassoc-0f81cf5c3e798aa8c"
+    "public-a": file.read("env/NETWORK_RTA_PUBLIC_A").strip()
+    "public-b": file.read("env/NETWORK_RTA_PUBLIC_B").strip()
+    "public-c": file.read("env/NETWORK_RTA_PUBLIC_C").strip()
+    "private-a": file.read("env/NETWORK_RTA_PRIVATE_A").strip()
+    "private-b": file.read("env/NETWORK_RTA_PRIVATE_B").strip()
+    "private-c": file.read("env/NETWORK_RTA_PRIVATE_C").strip()
 }
 
 # =============================================================================
@@ -209,11 +198,11 @@ _foundation_manifest = {
             permissionSets: [
                 {
                     name: _persistent_permission_set_name
-                    description: "E2E testing read-only access"
+                    description: "Full administrator access"
                     externalName: _persistent_permission_set_external_name
                     managementPolicies: _observeOnly
                     managedPolicies: [
-                        "arn:aws:iam::aws:policy/ReadOnlyAccess"
+                        "arn:aws:iam::aws:policy/AdministratorAccess"
                     ]
                     assignToGroups: [_persistent_group_name]
                     # Use account name - Foundation resolves to account ID

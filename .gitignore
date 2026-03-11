@@ -2,3 +2,4 @@ _output/
 .up/
 .tmp/
 tests/**/secrets/
+tests/**/env/
