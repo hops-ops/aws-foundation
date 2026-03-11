@@ -59,6 +59,7 @@ jobs:
           "ipams.aws.hops.ops.com.ai",
           "accounts.aws.hops.ops.com.ai"
         ]
+      write-env-files: true
       env-vars: |
         {
           "ORG_ID": "${{ vars.ORG_ID }}",
