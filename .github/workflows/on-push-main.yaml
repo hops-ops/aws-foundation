@@ -2,16 +2,16 @@ name: on-push-main
 on:
   push:
     branches:
-    - main
+      - main
     paths:
-      - '.github/workflows/on-push-main.yaml'
-      - '.github/workflows/on-version-tagged.yaml'
-      - '.gitops/**'
-      - 'apis/**'
-      - 'examples/**'
-      - 'functions/**'
-      - 'tests/**'
-      - 'upbound.yaml'
+      - ".github/workflows/on-push-main.yaml"
+      - ".github/workflows/on-version-tagged.yaml"
+      - ".gitops/**"
+      - "apis/**"
+      - "examples/**"
+      - "functions/**"
+      - "tests/**"
+      - "upbound.yaml"
 
 permissions:
   packages: write
@@ -21,9 +21,8 @@ permissions:
   id-token: write
 
 jobs:
-
   validate:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/validate.yaml@v2.18.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/validate.yaml@v2.19.1
     with:
       examples: |
         [
@@ -40,10 +39,10 @@ jobs:
       error_on_missing_schemas: true
 
   test:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/test.yaml@v2.18.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/test.yaml@v2.19.1
 
   e2e:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/e2e.yaml@feat/kcl-env-files
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/e2e.yaml@v2.19.1
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
