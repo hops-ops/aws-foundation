@@ -237,6 +237,20 @@ spec:
                         name:
                           type: string
                           description: Permission set name.
+                        assignmentManagementPolicies:
+                          type: array
+                          description: |
+                            ManagementPolicies for account assignments rendered from this
+                            permission set. Defaults to the permission set policies.
+                          items:
+                            type: string
+                            enum:
+                            - "*"
+                            - Create
+                            - Observe
+                            - Update
+                            - Delete
+                            - LateInitialize
                         assignToAccounts:
                           type: array
                           description: |
