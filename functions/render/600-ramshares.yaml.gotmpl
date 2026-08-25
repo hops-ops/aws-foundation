@@ -20,8 +20,8 @@ metadata:
 spec:
   managementPolicies: {{ toJson $share.managementPolicies }}
   providerConfigRef:
-    name: {{ $state.spec.effective.providerConfigRef.name }}
-    kind: {{ $state.spec.effective.providerConfigRef.kind }}
+    name: {{ $share.providerConfigRef.name }}
+    kind: {{ $share.providerConfigRef.kind | default "ProviderConfig" }}
   region: {{ $share.region }}
   name: {{ $state.foundation.name }}-{{ $share.name }}
   labels: {{ $state.foundation.labels | toJson }}

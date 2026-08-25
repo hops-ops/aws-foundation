@@ -583,6 +583,21 @@ spec:
                     region:
                       type: string
                       description: AWS region for this RAM share. Defaults to spec.region.
+                    providerConfigRef:
+                      type: object
+                      description: |
+                        AWS ProviderConfig used to own this RAM share. Defaults to
+                        spec.providerConfigRef. Use the resource-owner account when
+                        sharing cross-account resources such as IPAM pools.
+                      required:
+                      - name
+                      properties:
+                        name:
+                          type: string
+                        kind:
+                          type: string
+                          enum: [ProviderConfig, ClusterProviderConfig]
+                          default: ProviderConfig
                     allowExternalPrincipals:
                       type: boolean
                       description: Allow principals outside the organization. Defaults to false.
@@ -741,6 +756,8 @@ spec:
                             type: string
                           status:
                             type: string
+                          ready:
+                            type: boolean
                     principals:
                       type: array
                       items:
@@ -752,6 +769,8 @@ spec:
                             type: string
                           status:
                             type: string
+                          ready:
+                            type: boolean
               spec:
                 type: object
                 description: |
