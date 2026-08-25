@@ -107,6 +107,9 @@ spec:
       {{- if $ps.managementPolicies }}
       managementPolicies: {{ toJson $ps.managementPolicies }}
       {{- end }}
+      {{- if $ps.assignmentManagementPolicies }}
+      assignmentManagementPolicies: {{ toJson $ps.assignmentManagementPolicies }}
+      {{- end }}
       {{- $psAssignToAccounts := $ps.assignToAccounts | default list }}
       {{- $psAssignToGroups := $ps.assignToGroups | default list }}
       {{- $psAssignToUsers := $ps.assignToUsers | default list }}
