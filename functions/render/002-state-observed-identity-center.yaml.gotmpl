@@ -28,7 +28,7 @@
 # Extract user IDs: username -> id
 {{- $usernameToId := dict }}
 {{- range ($identityStore.users | default list) }}
-  {{- $usernameToId = set $usernameToId .username (.id | default "") }}
+  {{- $usernameToId = set $usernameToId .name (.id | default "") }}
 {{- end }}
 
 # Extract permission set ARNs: name -> arn
