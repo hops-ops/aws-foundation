@@ -64,6 +64,9 @@ spec:
       {{- if $user.groups }}
       groups: {{ toJson $user.groups }}
       {{- end }}
+      {{- if $user.groupMembershipExternalNames }}
+      groupMembershipExternalNames: {{ toJson $user.groupMembershipExternalNames }}
+      {{- end }}
       {{- if $user.externalName }}
       externalName: {{ $user.externalName | quote }}
       {{- end }}
