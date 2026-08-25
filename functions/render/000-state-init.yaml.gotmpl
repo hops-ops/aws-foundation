@@ -50,6 +50,10 @@
 
 # Member accounts provider configs
 {{- $memberAccountsProviderConfigs := $spec.memberAccountsProviderConfigs | default dict }}
+{{- $memberAccountsProviderConfigsEnabled := true }}
+{{- if hasKey $memberAccountsProviderConfigs "enabled" }}
+  {{- $memberAccountsProviderConfigsEnabled = $memberAccountsProviderConfigs.enabled }}
+{{- end }}
 
 # Networks spec with defaults
 {{- $networkDefaults := $spec.networkDefaults | default dict }}
@@ -127,7 +131,7 @@
       )
 
       "memberAccountsProviderConfigs" (dict
-        "enabled" ($memberAccountsProviderConfigs.enabled | default true)
+        "enabled" $memberAccountsProviderConfigsEnabled
         "managementPolicies" ($memberAccountsProviderConfigs.managementPolicies | default (list "*"))
         "namespace" ($memberAccountsProviderConfigs.namespace | default "default")
       )
