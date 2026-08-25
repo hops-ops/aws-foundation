@@ -18,6 +18,7 @@
 {{- range $share := $ramShares }}
   {{- $shareName := $share.name }}
   {{- $shareRegion := $share.region | default $eff.region }}
+  {{- $providerConfigRef := $share.providerConfigRef | default $eff.providerConfigRef }}
   {{- $allowExternalPrincipals := $share.allowExternalPrincipals | default false }}
   {{- $permissionArns := $share.permissionArns | default list }}
 
@@ -142,6 +143,7 @@
     "name" $shareName
     "render" $shouldRender
     "region" $shareRegion
+    "providerConfigRef" $providerConfigRef
     "allowExternalPrincipals" $allowExternalPrincipals
     "permissionArns" $permissionArns
     "resources" $processedResources
