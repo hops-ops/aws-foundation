@@ -12,9 +12,19 @@
   },
   "packageRules": [
     {
-      "description": "Automerge minor and patch updates that pass all checks",
-      "matchUpdateTypes": ["minor", "patch"],
+      "description": "Automerge minor and patch updates after all checks pass",
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "automerge": true
+    },
+    {
+      "description": "Require manual review for major updates",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false
     },
     {
       "description": "Disable automatic updates for all hops-ops Docker images",
@@ -27,7 +37,7 @@
       ]
     },
     {
-      "description": "Group all AWS provider packages together for batched updates",
+      "description": "Group AWS provider-family packages",
       "matchPackageNames": [
         "/provider-family-aws/",
         "/provider-aws-.*/"
@@ -85,6 +95,32 @@
       "registryUrlTemplate": "https://{{registryUrl}}",
       "depNameTemplate": "{{orgName}}/{{repoName}}",
       "packageNameTemplate": "{{orgName}}/{{repoName}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Annotated runtime dependencies in schemas, templates, examples, and tests",
+      "managerFilePatterns": [
+        "apis/**/*.yaml",
+        "examples/**/*.yaml",
+        "functions/**/*.yaml.gotmpl",
+        "tests/**/*.k"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[^\\n]*?(?:default\\s+|:=\\s*|[\"']?(?:version|chartVersion|tag|default)[\"']?\\s*(?:[=:]\\s*|\\s+))[\"']?(?<currentValue>v?[0-9][^\\s\"'}]*)",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[^\\n]*?(?:default\\s+|[\"']?image[\"']?\\s*[=:]\\s*)[\"']?[A-Za-z0-9._/-]+:(?<currentValue>v?[A-Za-z0-9][^\\s\"'}]*)",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[^\\n]*?package\\s*=\\s*\"[^\"]+:(?<currentValue>[^\"]+)\""
+      ]
     }
-  ]
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/__fixtures__/**"
+  ],
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "ignoreTests": false
 }
