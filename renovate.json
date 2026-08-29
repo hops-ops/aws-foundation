@@ -56,7 +56,7 @@
       "semanticCommitScope": "deps"
     },
     {
-      "description": "Use fix(deps): commit prefix for other Crossplane packages from Docker registries",
+      "description": "Use feat(deps): commit prefix for other Crossplane packages from Docker registries",
       "matchManagers": [
         "custom.regex"
       ],
@@ -115,7 +115,7 @@
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[^\\n]*?(?:default\\s+|:=\\s*|[\"']?(?:version|chartVersion|tag|default)[\"']?\\s*(?:[=:]\\s*|\\s+))[\"']?(?<currentValue>v?[0-9][^\\s\"'}]*)",
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[^\\n]*?[\"']?image[\"']?\\s*[=:]\\s*[\"']?[A-Za-z0-9._/-]+:(?<currentValue>v?[A-Za-z0-9][^\\s\"'}]*)",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[^\\n]*?(?:default\\s*:\\s*|[\"']?image[\"']?\\s*[=:]\\s*)[\"']?[A-Za-z0-9._/-]+:(?<currentValue>v?[A-Za-z0-9][^\\s\"'}]*)",
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[^\\n]*?package\\s*=\\s*\"[^\"]+:(?<currentValue>[^\"]+)\""
       ]
     }
@@ -126,7 +126,8 @@
     "**/vendor/**",
     "**/__tests__/**",
     "**/test/**",
-    "**/__fixtures__/**"
+    "**/__fixtures__/**",
+    "**/fixtures/**"
   ],
   "automergeType": "pr",
   "platformAutomerge": false,
